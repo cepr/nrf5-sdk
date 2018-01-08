@@ -92,7 +92,6 @@ jobs:
       - run: cd examples/ble_peripheral/ble_app_hids_mouse/pca10056/s132/armgcc && make
       - run: cd examples/ble_peripheral/ble_app_hrs/pca10028/s130/armgcc && make
       - run: cd examples/ble_peripheral/ble_app_hrs/pca10040/s132/armgcc && make
-      - run: cd examples/ble_peripheral/ble_app_hrs/pca10040/s332/armgcc && make
       - run: cd examples/ble_peripheral/ble_app_hrs/pca10040/ser_s132_hci/armgcc && make
       - run: cd examples/ble_peripheral/ble_app_hrs/pca10040/ser_s132_spi/armgcc && make
       - run: cd examples/ble_peripheral/ble_app_hrs/pca10040/ser_s132_spi_5W/armgcc && make
@@ -117,7 +116,6 @@ jobs:
       - run: cd examples/ble_peripheral/ble_app_pwr_profiling/pca10056/s132/armgcc && make
       - run: cd examples/ble_peripheral/ble_app_rscs/pca10028/s130/armgcc && make
       - run: cd examples/ble_peripheral/ble_app_rscs/pca10040/s132/armgcc && make
-      - run: cd examples/ble_peripheral/ble_app_rscs/pca10040/s332/armgcc && make
       - run: cd examples/ble_peripheral/ble_app_rscs/pca10040/ser_s132_hci/armgcc && make
       - run: cd examples/ble_peripheral/ble_app_rscs/pca10040/ser_s132_spi/armgcc && make
       - run: cd examples/ble_peripheral/ble_app_rscs/pca10040/ser_s132_uart/armgcc && make
@@ -173,12 +171,10 @@ jobs:
       - run: cd examples/dtm/direct_test_mode/pca10028/s130/armgcc && make
       - run: cd examples/dtm/direct_test_mode/pca10040/blank/armgcc && make
       - run: cd examples/dtm/direct_test_mode/pca10040/s132/armgcc && make
-      - run: cd examples/dtm/direct_test_mode/pca10040/s332/armgcc && make
       - run: cd examples/dtm/dtm_serialization/pca10040/ser_s132_hci/armgcc && make
       - run: cd examples/dtm/dtm_serialization/pca10040/ser_s132_spi/armgcc && make
       - run: cd examples/dtm/dtm_serialization/pca10040/ser_s132_spi_5W/armgcc && make
       - run: cd examples/dtm/dtm_serialization/pca10040/ser_s132_uart/armgcc && make
-      - run: cd examples/multiprotocol/ble_ant_app_hrm/pca10040/s332/armgcc && make
       - run: cd examples/multiprotocol/ble_app_gzll/pca10028/s130/armgcc && make
       - run: cd examples/multiprotocol/experimental_ble_app_gzll/pca10040/s132/armgcc && make
       - run: cd examples/nfc/adafruit_tag_reader/pca10040/blank/armgcc && make
