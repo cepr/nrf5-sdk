@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -41,11 +41,6 @@
 
 #include "ble_serialization.h"
 #include "nrf_soc.h"
-#include "ble.h"
-#include "ble_l2cap.h"
-#include "ble_gap.h"
-#include "ble_gattc.h"
-#include "ble_gatts.h"
 
 /**@brief Connectivity middleware handler type. */
 typedef uint32_t (*conn_mw_handler_t)(uint8_t const * const p_rx_buf,

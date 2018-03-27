@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,18 +37,17 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #ifndef BLE_DTM_CONN_H__
 #define BLE_DTM_CONN_H__
 
 /**
- * @addtogroup ser_codecs Serialization codecs
- * @ingroup ble_sdk_lib_serialization
+ * @addtogroup ser_codecs_conn Connectivity codecs
+ * @ingroup ser_codecs
  */
 
 /**
  * @addtogroup ser_conn_common_codecs Connectivity common codecs
- * @ingroup ser_codecs
+ * @ingroup ser_codecs_conn
  */
 
 /**@file

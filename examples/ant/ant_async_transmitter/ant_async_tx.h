@@ -48,12 +48,10 @@
  * ABOVE LIMITATIONS MAY NOT APPLY TO YOU.
  * 
  */
-
 #ifndef ANT_ASYNC_TX_H__
 #define ANT_ASYNC_TX_H__
 
 #include <stdint.h>
-#include "ant_stack_handler_types.h"
 #include "bsp.h"
 
 #ifdef __cplusplus
@@ -63,9 +61,8 @@ extern "C" {
 
 /**@brief Function for configuring an asynchronous transmitter
  *
- * @param[in] timer_prescaler   Value of the app timer prescaler
  */
-void ant_async_tx_setup(uint32_t timer_prescaler);
+void ant_async_tx_setup(void);
 
 
 /**@brief Handles BSP events.
@@ -73,12 +70,6 @@ void ant_async_tx_setup(uint32_t timer_prescaler);
  * @param[in] evt   BSP event.
  */
 void ant_async_tx_bsp_evt_handler(bsp_event_t evt);
-
-
-/**@brief Handle ANT events
- * @param[in] p_ant_evt A pointer to the received ANT event to handle.
- */
-void ant_async_tx_event_handler(ant_evt_t * p_ant_evt);
 
 
 #ifdef __cplusplus

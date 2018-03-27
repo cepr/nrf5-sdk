@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  * @defgroup nrf_drv_csense_example_main main.c
  * @{
@@ -55,22 +54,25 @@
 #include "nrf_drv_clock.h"
 #include "app_timer.h"
 #include "nrf_delay.h"
+#include "nrf_cli.h"
+#include "nrf_cli_uart.h"
 
-#define NRF_LOG_MODULE_NAME "APP"
+
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
-
-/* Time between RTC interrupts. */
-#define APP_TIMER_TICKS_TIMEOUT 2000
+#include "nrf_log_default_backends.h"
 
 /* Pin used to measure capacitor charging time. */
-#ifdef NRF51
+#if USE_COMP == 0
+#ifdef ADC_PRESENT
 #define OUTPUT_PIN 30
+#elif defined(SAADC_PRESENT)
+#define OUTPUT_PIN 26
+#endif
 #endif
 
-/* Timer initialization parameters. */
-#define OP_QUEUES_SIZE          4
-#define APP_TIMER_PRESCALER     0
+/* Time between RTC interrupts. */
+#define APP_TIMER_TICKS_TIMEOUT APP_TIMER_TICKS(50)
 
 /* Analog inputs. */
 #define AIN_1                   1
@@ -92,6 +94,11 @@
 #define UART_RX_BUF_SIZE 1                                                  /**< UART RX buffer size. */
 
 
+NRF_CLI_UART_DEF(m_cli_uart_transport, 0, 64, 16);
+NRF_CLI_DEF(m_cli_uart, "uart_cli:~$ ", &m_cli_uart_transport.transport, '\r', 4);
+
+
+
 /* Threshold number of ticks (if COMP module present) or voltage in millivolts on sensor. */
 volatile uint32_t threshold_value_pad1 = 850;
 volatile uint32_t threshold_value_pad2 = 850;
@@ -99,9 +106,29 @@ volatile uint32_t threshold_value_pad2 = 850;
 /* Variables needed to properly configure threshold. */
 volatile uint32_t max_value[2];
 volatile uint32_t min_value[2];
-bool conf_mode;
+volatile uint32_t m_wait_timer = 0;
 
-/** 
+typedef enum
+{
+    CSD_STATE_IDLE,
+    CSD_STATE_START_CONFIG,
+    CSD_STATE_WAIT_TOUCH,
+    CSD_STATE_TOUCH,
+    CSD_STATE_WAIT_RELEASE,
+    CSD_STATE_RELEASE
+} csd_state_t;
+
+static csd_state_t m_state;
+
+static void timer_handle(void * p_context)
+{
+    if (m_wait_timer)
+    {
+        --m_wait_timer;
+    }
+}
+
+/**
  * @brief Function for starting the internal LFCLK XTAL oscillator.
  *
  * Note that when using a SoftDevice, LFCLK is always on.
@@ -144,13 +171,11 @@ void csense_handler(nrf_drv_csense_evt_t * p_event_struct)
     {
         case AIN_1:
         case AIN_2:
-            if (conf_mode)
+            if ((m_state == CSD_STATE_TOUCH) || (m_state == CSD_STATE_RELEASE))
             {
-                NRF_LOG_INFO("PAD1: %d.\r\n", p_event_struct->read_value);
                 find_min_and_max(p_event_struct->read_value, PAD_ID_0);
-                break;
             }
-            if (p_event_struct->read_value >= threshold_value_pad1)
+            else if (p_event_struct->read_value >= threshold_value_pad1)
             {
                 bsp_board_led_on(BSP_BOARD_LED_0);
             }
@@ -160,13 +185,11 @@ void csense_handler(nrf_drv_csense_evt_t * p_event_struct)
             }
             break;
         case AIN_7:
-            if (conf_mode)
+            if ((m_state == CSD_STATE_TOUCH) || (m_state == CSD_STATE_RELEASE))
             {
-                NRF_LOG_INFO("PAD2: %d.\r\n", p_event_struct->read_value);
                 find_min_and_max(p_event_struct->read_value, PAD_ID_1);
-                break;
             }
-            if (p_event_struct->read_value >= threshold_value_pad2)
+            else if (p_event_struct->read_value >= threshold_value_pad2)
             {
                 bsp_board_led_on(BSP_BOARD_LED_2);
             }
@@ -188,7 +211,7 @@ void csense_initialize(void)
 
     nrf_drv_csense_config_t csense_config = { 0 };
 
-#ifdef NRF51
+#if USE_COMP == 0
     csense_config.output_pin = OUTPUT_PIN;
 #endif
 
@@ -212,7 +235,7 @@ static void csense_timeout_handler(void * p_context)
     err_code = nrf_drv_csense_sample();
     if (err_code != NRF_SUCCESS)
     {
-        NRF_LOG_INFO("Busy.\r\n");
+        NRF_LOG_RAW_INFO("Busy.");
         return;
     }
 }
@@ -223,9 +246,16 @@ static void csense_timeout_handler(void * p_context)
 void start_app_timer(void)
 {
     ret_code_t err_code;
-        
+
     /* APP_TIMER definition for csense example. */
     APP_TIMER_DEF(timer_0);
+    APP_TIMER_DEF(timer_1);
+
+    err_code = app_timer_create(&timer_1, APP_TIMER_MODE_REPEATED, timer_handle);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = app_timer_start(timer_1, APP_TIMER_TICKS(100), NULL);
+    APP_ERROR_CHECK(err_code);
 
     err_code = app_timer_create(&timer_0, APP_TIMER_MODE_REPEATED, csense_timeout_handler);
     APP_ERROR_CHECK(err_code);
@@ -234,72 +264,96 @@ void start_app_timer(void)
     APP_ERROR_CHECK(err_code);
 }
 
-/**
- * @brief Function for configuring pads threshold.
- */
-void configure_thresholds(void)
+#define CSD_NEXT_STATE(_state)  (m_state = (_state))
+static void configuration(void)
 {
     ret_code_t err_code;
     uint32_t new_th_pad_1;
     uint32_t new_th_pad_2;
-    
-    for (int i = 0; i < 2; i++)
-    {
-        max_value[i] = 0;
-        min_value[i] = UINT32_MAX;
-    }
-    
-    NRF_LOG_INFO("Touch both pads.\r\n");
-    NRF_LOG_FLUSH();
-    nrf_delay_ms(1000);
-    NRF_LOG_INFO("3...\r\n");
-    NRF_LOG_FLUSH();
-    nrf_delay_ms(1000);
-    NRF_LOG_INFO("2...\r\n");
-    NRF_LOG_FLUSH();
-    nrf_delay_ms(1000);
-    NRF_LOG_INFO("1...\r\n");
-    NRF_LOG_FLUSH();
-    
-    err_code = nrf_drv_csense_sample();   
-    if (err_code != NRF_SUCCESS)
-    {
-        NRF_LOG_INFO("Busy.\n");
-        return;
-    }
-    while (nrf_drv_csense_is_busy());
-    
-    NRF_LOG_INFO("Release both pads.\r\n");
-    NRF_LOG_FLUSH();
-    nrf_delay_ms(1000);
-    NRF_LOG_INFO("3...\r\n");
-    NRF_LOG_FLUSH();
-    nrf_delay_ms(1000);
-    NRF_LOG_INFO("2...\r\n");
-    NRF_LOG_FLUSH();
-    nrf_delay_ms(1000);
-    NRF_LOG_INFO("1...\r\n");
-    NRF_LOG_FLUSH();
-    
-    err_code = nrf_drv_csense_sample();   
-    if (err_code != NRF_SUCCESS)
-    {
-        NRF_LOG_INFO("Busy.\n");
-        return;
-    }
-    while (nrf_drv_csense_is_busy());
 
-    nrf_delay_ms(100);    
-    new_th_pad_1 = max_value[PAD_ID_0];
-    new_th_pad_1 += min_value[PAD_ID_0];
-    new_th_pad_1 /= 2;
-    new_th_pad_2 = max_value[PAD_ID_1];
-    new_th_pad_2 += min_value[PAD_ID_1];
-    new_th_pad_2 /= 2;
-    threshold_value_pad1 = new_th_pad_1;
-    threshold_value_pad2 = new_th_pad_2;
-    NRF_LOG_INFO("New thresholds, AIN1: %d, AIN7: %d.\r\n", (unsigned int)new_th_pad_1,
-                                                      (unsigned int)new_th_pad_2);
+    switch (m_state)
+    {
+        case CSD_STATE_IDLE:
+            /* do nothing */
+            break;
+        case CSD_STATE_START_CONFIG:
+            NRF_LOG_RAW_INFO("[STEP: %d] Touch both pads.\r\n", CSD_STATE_START_CONFIG);
+            for (int i = 0; i < 2; i++)
+            {
+                max_value[i] = 0;
+                min_value[i] = UINT32_MAX;
+            }
+            CSD_NEXT_STATE(CSD_STATE_WAIT_TOUCH);
+            m_wait_timer = 15;  // wait 1,5 s
+            break;
+        case CSD_STATE_WAIT_TOUCH:
+            if (m_wait_timer == 0)
+            {
+                NRF_LOG_RAW_INFO("[STEP: %d] Measurement started: wait 3s\r\n",
+                                 CSD_STATE_WAIT_TOUCH);
+                m_wait_timer = 30;   // measure pads for 3 seconds
+                CSD_NEXT_STATE(CSD_STATE_TOUCH);
+                break;
+            }
+            break;
+        case CSD_STATE_TOUCH:
+            if (m_wait_timer == 0)
+            {
+                CSD_NEXT_STATE(CSD_STATE_WAIT_RELEASE);
+                err_code = nrf_drv_csense_sample();
+                if (err_code != NRF_SUCCESS)
+                {
+                    NRF_LOG_RAW_INFO("Sensor Busy - configuration terminated.\r\n");
+                    CSD_NEXT_STATE(CSD_STATE_IDLE);
+                    return;
+                }
+                while (nrf_drv_csense_is_busy());
+                NRF_LOG_RAW_INFO("-> measurement finished OK.\r\n");
+                NRF_LOG_RAW_INFO("[STEP: %d] Release both pads.\r\n", CSD_STATE_TOUCH);
+                m_wait_timer = 15;  // wait 1,5 s
+                break;
+            }
+            break;
+        case CSD_STATE_WAIT_RELEASE:
+            if (m_wait_timer == 0)
+            {
+                NRF_LOG_RAW_INFO("[STEP: %d] Measurement started: wait 3s\r\n",
+                                 CSD_STATE_WAIT_RELEASE);
+                CSD_NEXT_STATE(CSD_STATE_RELEASE);
+                m_wait_timer = 30;  // wait 1 s
+            }
+            break;
+        case CSD_STATE_RELEASE:
+            if (m_wait_timer == 0)
+            {
+                CSD_NEXT_STATE(CSD_STATE_IDLE);
+                err_code = nrf_drv_csense_sample();
+                if (err_code != NRF_SUCCESS)
+                {
+                    NRF_LOG_RAW_INFO("Sensor Busy - configuration terminated.\r\n");
+                    return;
+                }
+                while (nrf_drv_csense_is_busy());
+                NRF_LOG_RAW_INFO("-> measurement finished OK.\r\n");
+                new_th_pad_1 = max_value[PAD_ID_0];
+                new_th_pad_1 += min_value[PAD_ID_0];
+                new_th_pad_1 /= 2;
+                new_th_pad_2 = max_value[PAD_ID_1];
+                new_th_pad_2 += min_value[PAD_ID_1];
+                new_th_pad_2 /= 2;
+                threshold_value_pad1 = new_th_pad_1;
+                threshold_value_pad2 = new_th_pad_2;
+
+                NRF_LOG_RAW_INFO("\r\nNew thresholds:\r\n\tAIN1 = %d\r\n\tAIN7 = %d"
+                                 "\r\nModule ready.\r\n",
+                                 (unsigned int)new_th_pad_1,
+                                 (unsigned int)new_th_pad_2);
+                break;
+            }
+            break;
+        default:
+            break;
+    }
 }
 
 
@@ -309,44 +363,61 @@ void configure_thresholds(void)
 int main(void)
 {
     ret_code_t err_code;
-    char config;
-    
+
     APP_ERROR_CHECK(NRF_LOG_INIT(NULL));
-    
-    bsp_board_leds_init();
+
+    bsp_board_init(BSP_INIT_LEDS);
 
     err_code = clock_config();
     APP_ERROR_CHECK(err_code);
-    
-    APP_TIMER_INIT(APP_TIMER_PRESCALER, OP_QUEUES_SIZE, NULL);
 
-    
-    NRF_LOG_INFO("Capacitive sensing driver example.\r\n");
-    
-    csense_initialize();    
+    err_code = app_timer_init();
+    APP_ERROR_CHECK(err_code);
 
-    NRF_LOG_INFO("Do you want to enter configuration mode to set thresholds?(y/n)\r\n");
-    NRF_LOG_FLUSH();
-    
-    config = NRF_LOG_GETCHAR();
-    
-    conf_mode = (config == 'y') ? true : false;
-    
-    if (conf_mode)
-    {
-        configure_thresholds();
-        conf_mode = false;
-    }
+    nrf_drv_uart_config_t uart_config = NRF_DRV_UART_DEFAULT_CONFIG;
+    uart_config.pseltxd = TX_PIN_NUMBER;
+    uart_config.pselrxd = RX_PIN_NUMBER;
+    uart_config.hwfc    = NRF_UART_HWFC_DISABLED;
+    err_code = nrf_cli_init(&m_cli_uart, &uart_config, true, true, NRF_LOG_SEVERITY_INFO);
+    APP_ERROR_CHECK(err_code);
 
-    NRF_LOG_INFO("Module ready.\r\n");
-    
-    start_app_timer();    
+    err_code = nrf_cli_start(&m_cli_uart);
+    APP_ERROR_CHECK(err_code);
+
+    NRF_LOG_RAW_INFO("Capacitive sensing driver example started. \r\n");
+    csense_initialize();
+    NRF_LOG_RAW_INFO("Please execute: \"configure\" command to set thresholds.\r\n"
+                     "In order to see all available commands please press the Tab button.\r\n");
+
+    start_app_timer();
 
     while (1)
     {
-        NRF_LOG_FLUSH();
+        UNUSED_RETURN_VALUE(NRF_LOG_PROCESS());
+        nrf_cli_process(&m_cli_uart);
+        configuration();
         __WFI();
     }
 }
+
+static void configure_thresholds(nrf_cli_t const * p_cli, size_t argc, char **argv)
+{
+    if (argc > 1)
+    {
+        nrf_cli_fprintf(p_cli, NRF_CLI_ERROR, "%s: too many parameters\r\n", argv[0]);
+        return;
+    }
+
+    if (m_state != CSD_STATE_IDLE)
+    {
+        nrf_cli_fprintf(p_cli, NRF_CLI_WARNING, "configuration already ongoing\r\n");
+    }
+    else
+    {
+        CSD_NEXT_STATE(CSD_STATE_START_CONFIG);
+    }
+}
+
+NRF_CLI_CMD_REGISTER(configure, NULL, "Thresholds configuration command.", configure_thresholds);
 
 /** @} */

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2017 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #include <stdint.h>
 #ifdef DX_LINUX_PLATFORM
 #include <stdio.h>//for printf
@@ -50,7 +49,7 @@
 #include "integration_test_ssi_data.h"
 #include "crys_hash.h"
 
-hashDataStuct hashVectors[] = {
+const hashDataStuct hashVectors[] = {
 	{
 		/*Test parameters*/
 		{"HASH-SHA1/Input_data_16"},
@@ -61,9 +60,9 @@ hashDataStuct hashVectors[] = {
 		/*input_data*/
 		16*sizeof(uint8_t),
 		/*SHA1 Expected output data*/
-		{0x3fb53721,0xd3d034ef,0xc388c31e,0x21de6e96,0x7bd0505f},
+		{0x3fb53721,0xd3d034ef,0xc388c31e,0x21de6e96,0x7bd0505f}, 
 		/*SHA1 expected dataSize*/
-		CRYS_HASH_SHA1_DIGEST_SIZE_IN_BYTES*sizeof(uint8_t),
+		CRYS_HASH_SHA1_DIGEST_SIZE_IN_BYTES*sizeof(uint8_t), 
 	},
 
 	{
@@ -77,9 +76,9 @@ hashDataStuct hashVectors[] = {
 		/*input_data*/
 		32*sizeof(uint8_t),
 		/*SHA256 Expected output data*/
-		{0x9bb3cf75,0x9274c462,0x97ad2a1e,0x8b0f219c,0x9d0a1869,0x96f2e958,0x4a90b9a4,0x40aae7e6},
+		{0x9bb3cf75,0x9274c462,0x97ad2a1e,0x8b0f219c,0x9d0a1869,0x96f2e958,0x4a90b9a4,0x40aae7e6}, 
 		/*SHA1 expected dataSize*/
-		CRYS_HASH_SHA256_DIGEST_SIZE_IN_BYTES*sizeof(uint8_t),
+		CRYS_HASH_SHA256_DIGEST_SIZE_IN_BYTES*sizeof(uint8_t), 
 	},
 	{
 		/*Test parameters*/
@@ -101,7 +100,7 @@ hashDataStuct hashVectors[] = {
          0x2B2D0FC8,0xBA7A09A6,0x105D2E0D,0xDEA30C98},
 		/*SHA512 expected dataSize*/
 		CRYS_HASH_SHA512_DIGEST_SIZE_IN_BYTES*sizeof(uint8_t),
-	}
+	},
 };
 
 

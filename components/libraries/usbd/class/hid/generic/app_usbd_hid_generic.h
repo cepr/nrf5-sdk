@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2017 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #ifndef APP_USBD_HID_GENERIC_H__
 #define APP_USBD_HID_GENERIC_H__
 
@@ -87,27 +86,26 @@ APP_USBD_CLASS_TYPEDEF(app_usbd_hid_generic,                                    
 #endif
 
 /**
- * @brief Global definition of app_usbd_hid_generic_t class
+ * @brief Global definition of app_usbd_hid_generic_t class.
  *
- * @param instance_name             Name of global instance
- * @param interface_number          Unique interface index
- * @param user_ev_handler           User event handler (optional)
- * @param endpoint_list             Input endpoint list (@ref nrf_drv_usbd_ep_t)
- * @param hid_dsc_list              HID descriptor item list @ref APP_USBD_HID_REPORT_ITEM, @ref APP_USBD_HID_PHYSICAL_ITEM
- * @param report_cnt                Report count
- * @param report_out_maxsize        Maximum output report size
+ * @param instance_name             Name of global instance.
+ * @param interface_number          Unique interface index.
+ * @param user_ev_handler           User event handler (optional).
+ * @param endpoint_list             Input endpoint list (@ref nrf_drv_usbd_ep_t).
+ * @param subclass_descriptors      HID subclass descriptors.
+ * @param report_in_queue_size      IN report queue size.
+ * @param report_out_maxsize        Maximum output report size.
+ * @param subclass_boot             Subclass boot. (@ref app_usbd_hid_subclass_t)
+ * @param protocol                  HID protocol. (@ref app_usbd_hid_protocol_t)
  *
- * @note This macro is just simplified version of @ref APP_USBD_HID_GENERIC_GLOBAL_DEF_INTERNAL
+ * @note This macro is just simplified version of @ref APP_USBD_HID_GENERIC_GLOBAL_DEF_INTERNAL.
  *
  * Example class definition:
  * @code
 
-       static uint8_t m_generic_rep_dsc[] = APP_USBD_HID_MOUSE_REPORT_DSC_BUTTON(2);
+       APP_USBD_HID_GENERIC_SUBCLASS_REPORT_DESC(mouse_desc,APP_USBD_HID_MOUSE_REPORT_DSC_BUTTON(2));
 
-       #define HID_DESCRIPTOR_ITEM_LIST                             \
-       (                                                            \
-               m_generic_rep_dsc,                                   \
-       )
+       static const app_usbd_hid_subclass_desc_t * reps[] = {&mouse_desc};
 
        #define ENDPOINT_LIST                                        \
        (                                                            \
@@ -120,10 +118,12 @@ APP_USBD_CLASS_TYPEDEF(app_usbd_hid_generic,                                    
        APP_USBD_HID_GENERIC_GLOBAL_DEF(m_app_hid_generic,
                                        0,
                                        hid_user_ev_handler,
-                                       ENDPOINT_LIST,
-                                       HID_DESCRIPTOR_ITEM_LIST,
-                                       REPORT_COUNT,
-                                       REPORT_OUT_MAXSIZE);
+                                       ENDPOINT_LIST(),
+                                       reps,
+                                       REPORT_IN_QUEUE_SIZE,
+                                       REPORT_OUT_MAXSIZE,
+                                       APP_USBD_HID_SUBCLASS_BOOT,
+                                       APP_USBD_HID_PROTO_MOUSE);
   @endcode
  *
  */
@@ -131,24 +131,28 @@ APP_USBD_CLASS_TYPEDEF(app_usbd_hid_generic,                                    
                                         interface_number,           \
                                         user_ev_handler,            \
                                         endpoint_list,              \
-                                        hid_dsc_list,               \
-                                        report_cnt,                 \
-                                        report_out_maxsize)         \
+                                        subclass_descriptors,       \
+                                        report_in_queue_size,       \
+                                        report_out_maxsize,         \
+                                        subclass_boot,              \
+                                        protocol)                   \
     APP_USBD_HID_GENERIC_GLOBAL_DEF_INTERNAL(instance_name,         \
                                              interface_number,      \
                                              user_ev_handler,       \
                                              endpoint_list,         \
-                                             hid_dsc_list,          \
-                                             report_cnt,            \
-                                             report_out_maxsize)
+                                             subclass_descriptors,  \
+                                             report_in_queue_size,  \
+                                             report_out_maxsize,    \
+                                             subclass_boot,         \
+                                             protocol)
 
 
 /**
- * @brief Helper function to get class instance from HID generic class
+ * @brief Helper function to get class instance from HID generic class.
  *
- * @param[in] p_generic HID generic class instance (defined by @ref APP_USBD_HID_GENERIC_GLOBAL_DEF)
+ * @param[in] p_generic HID generic class instance.
  *
- * @return Base class instance
+ * @return Base class instance.
  */
 static inline app_usbd_class_inst_t const *
 app_usbd_hid_generic_class_inst_get(app_usbd_hid_generic_t const * p_generic)
@@ -157,11 +161,11 @@ app_usbd_hid_generic_class_inst_get(app_usbd_hid_generic_t const * p_generic)
 }
 
 /**
- * @brief Helper function to get HID generic from base class instance
+ * @brief Helper function to get HID generic from base class instance.
  *
- * @param[in] p_inst Base class instance
+ * @param[in] p_inst Base class instance.
  *
- * @return HID generic class handle
+ * @return HID generic class handle.
  */
 static inline app_usbd_hid_generic_t const *
 app_usbd_hid_generic_class_get(app_usbd_class_inst_t const * p_inst)
@@ -173,49 +177,37 @@ app_usbd_hid_generic_class_get(app_usbd_class_inst_t const * p_inst)
  * @brief New IN report trigger
  *
  *
- * @param[in] p_generic HID generic class instance (defined by @ref APP_USBD_HID_GENERIC_GLOBAL_DEF)
- * @param[in] rep_id    Input report ID
- * @param[in] p_buff    Report buffer
- * @param[in] size      Report size
+ * @param[in] p_generic HID generic class instance.
+ * @param[in] p_buff    Report buffer.
+ * @param[in] size      Report size.
  *
- * @return Standard error code
+ * @return Standard error code.
  */
-ret_code_t app_usbd_hid_generic_report_in_set(app_usbd_hid_generic_t const * p_generic,
-                                              uint8_t rep_id,
+ret_code_t app_usbd_hid_generic_in_report_set(app_usbd_hid_generic_t const * p_generic,
                                               const void * p_buff,
                                               size_t size);
-
-
-/**
- * @brief Checks whether last IN report transfer has been done
- *
- * Helper function to check, whether that last IN report transfer is done.
- *
- * @param[in] p_generic HID generic class instance (defined by @ref APP_USBD_HID_GENERIC_GLOBAL_DEF)
- * @param rep_id input  Report ID
- *
- * @return true if transfer done, false otherwise
- */
-bool app_usbd_hid_generic_report_in_done(app_usbd_hid_generic_t const * p_generic, uint8_t rep_id);
-
 
 /**
  * @brief Returns last successful transfered IN report.
  *
- * @note Use this call only on @ref APP_USBD_HID_USER_EVT_IN_REPORT_DONE event
+ * @note Use this call only on @ref APP_USBD_HID_USER_EVT_IN_REPORT_DONE event.
  *
- * @param[in] p_generic HID generic class instance (defined by @ref APP_USBD_HID_GENERIC_GLOBAL_DEF)
+ * @param[in] p_generic HID generic class instance.
+ * @param[out] p_size   Last transfered IN report size.
+ *
  * @return Last transfered report ID.
  */
-uint8_t app_usbd_hid_generic_in_report_last_id(app_usbd_hid_generic_t const * p_generic);
+const void * app_usbd_hid_generic_in_report_get(app_usbd_hid_generic_t const * p_generic,
+                                                size_t * p_size);
 
 /**
  * @brief Returns last successful transfered OUT report.
  *
  * @warning Use this call only on @ref APP_USBD_HID_USER_EVT_OUT_REPORT_READY event.
  *
- * @param[in]  p_generic HID generic class instance (defined by @ref APP_USBD_HID_GENERIC_GLOBAL_DEF)
- * @param[out] p_size    Last transfered OUT report size.
+ * @param[in] p_generic HID generic class instance.
+ * @param[out] p_size   Last transfered OUT report size.
+ *
  * @return Last transfered OUT report.
  */
 const void * app_usbd_hid_generic_out_report_get(app_usbd_hid_generic_t const * p_generic,

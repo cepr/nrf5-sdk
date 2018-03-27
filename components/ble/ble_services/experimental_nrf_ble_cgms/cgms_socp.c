@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #include <stdint.h>
 #include <string.h>
 #include "ble.h"
@@ -88,7 +87,7 @@
 #define SOCP_RSP_PROCEDURE_NOT_COMPLETED              0x04
 #define SOCP_RSP_OUT_OF_RANGE                         0x05
 
-static void ble_socp_decode(uint8_t data_len, uint8_t * p_data, ble_cgms_socp_value_t * p_socp_val)
+static void ble_socp_decode(uint8_t data_len, uint8_t const * p_data, ble_cgms_socp_value_t * p_socp_val)
 {
     p_socp_val->opcode      = 0xFF;
     p_socp_val->operand_len = 0;
@@ -101,7 +100,7 @@ static void ble_socp_decode(uint8_t data_len, uint8_t * p_data, ble_cgms_socp_va
     if (data_len > 1)
     {
         p_socp_val->operand_len = data_len - 1;
-        p_socp_val->p_operand   = &p_data[1]; // lint !e416
+        p_socp_val->p_operand   = (uint8_t*)&p_data[1]; // lint !e416
     }
 }
 
@@ -154,7 +153,7 @@ ret_code_t cgms_socp_char_add(nrf_ble_cgms_t * p_cgms)
     memset(&add_char_params, 0, sizeof(add_char_params));
 
     add_char_params.uuid                = BLE_UUID_CGM_SPECIFIC_OPS_CTRLPT;
-    add_char_params.max_len             = BLE_L2CAP_MTU_DEF;
+    add_char_params.max_len             = BLE_GATT_ATT_MTU_DEFAULT;
     add_char_params.init_len            = 0;
     add_char_params.p_init_value        = 0;
     add_char_params.is_var_len          = true;
@@ -205,28 +204,28 @@ static void socp_send(nrf_ble_cgms_t * p_cgms)
     switch (err_code)
     {
         case NRF_SUCCESS:
-            // Wait for HVC event
+            // Wait for HVC event.
             p_cgms->cgms_com_state = STATE_SOCP_RESPONSE_IND_VERIF;
             break;
 
-        case BLE_ERROR_NO_TX_PACKETS:
-            // Wait for TX_COMPLETE event to retry transmission
+        case NRF_ERROR_RESOURCES:
+            // Wait for TX_COMPLETE event to retry transmission.
             p_cgms->cgms_com_state = STATE_SOCP_RESPONSE_PENDING;
             break;
 
         case NRF_ERROR_INVALID_STATE:
-            // Make sure state machine returns to the default state
+            // Make sure state machine returns to the default state.
             p_cgms->cgms_com_state = STATE_NO_COMM;
             break;
 
         default:
-            // Report error to application
+            // Report error to application.
             if (p_cgms->error_handler != NULL)
             {
                 p_cgms->error_handler(err_code);
             }
 
-            // Make sure state machine returns to the default state
+            // Make sure state machine returns to the default state.
             p_cgms->cgms_com_state = STATE_NO_COMM;
             break;
     }
@@ -275,7 +274,7 @@ static bool is_feature_present(nrf_ble_cgms_t * p_cgms, uint32_t feature)
  * @param[in]   p_cgms        Service instance.
  * @param[in]   p_evt_write   WRITE event to be handled.
  */
-void on_socp_value_write(nrf_ble_cgms_t * p_cgms, ble_gatts_evt_write_t * p_evt_write)
+static void on_socp_value_write(nrf_ble_cgms_t * p_cgms, ble_gatts_evt_write_t const * p_evt_write)
 {
     ble_cgms_socp_value_t                 socp_request;
     nrf_ble_cgms_evt_t                    evt;
@@ -408,8 +407,8 @@ void on_socp_value_write(nrf_ble_cgms_t * p_cgms, ble_gatts_evt_write_t * p_evt_
 }
 
 
-void cgms_socp_on_rw_auth_req(nrf_ble_cgms_t                       * p_cgms,
-                              ble_gatts_evt_rw_authorize_request_t * p_auth_req)
+void cgms_socp_on_rw_auth_req(nrf_ble_cgms_t                             * p_cgms,
+                              ble_gatts_evt_rw_authorize_request_t const * p_auth_req)
 {
     if (p_auth_req->type == BLE_GATTS_AUTHORIZE_TYPE_WRITE)
     {

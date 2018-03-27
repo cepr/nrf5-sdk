@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -166,13 +166,6 @@ uint32_t app_uart_init(const app_uart_comm_params_t * p_comm_params,
     // Turn on receiver if RX pin is connected
     if (p_comm_params->rx_pin_no != UART_PIN_DISCONNECTED)
     {
-#ifdef UARTE_PRESENT
-        if (!config.use_easy_dma)
-#endif
-        {
-            nrf_drv_uart_rx_enable(&app_uart_inst);
-        }
-
         return nrf_drv_uart_rx(&app_uart_inst, rx_buffer,1);
     }
     else
@@ -204,7 +197,7 @@ uint32_t app_uart_get(uint8_t * p_byte)
     ret_code_t err_code =  app_fifo_get(&m_rx_fifo, p_byte);
 
     // If FIFO was full new request to receive one byte was not scheduled. Must be done here.
-    if(rx_ovf)
+    if (rx_ovf)
     {
         m_rx_ovf = false;
         uint32_t uart_err_code = nrf_drv_uart_rx(&app_uart_inst, rx_buffer, 1);

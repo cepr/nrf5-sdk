@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,13 +37,12 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #ifndef NFC_LAUNCHAPP_MSG_H__
 #define NFC_LAUNCHAPP_MSG_H__
 
 /** @file
  *
- * @defgroup nfc_launch_app_msg Launch app messages
+ * @defgroup nfc_launchapp_msg Launch app messages
  * @{
  * @ingroup nfc_ndef_messages
  *

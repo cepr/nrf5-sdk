@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,6 +37,8 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
+#include "sdk_common.h"
+#if NRF_MODULE_ENABLED(NFC_EP_OOB_REC)
 
 #include "nfc_ep_oob_rec.h"
 #include "sdk_errors.h"
@@ -50,7 +52,7 @@
                                              NFC_EP_OOB_REC_OOB_DATA_LEN_SIZE)
 
 /* Record Payload Type for Bluetooth Carrier Configuration EP record */
-static const uint8_t ep_oob_rec_type_field[] =
+const uint8_t ndef_ep_oob_record_type[] =
 {
     'a', 'p', 'p', 'l', 'i', 'c', 'a', 't', 'i', 'o', 'n', '/', 'v', 'n', 'd', '.',
     'b', 'l', 'u', 'e', 't', 'o', 'o', 't', 'h', '.', 'e', 'p', '.', 'o', 'o', 'b'
@@ -112,21 +114,11 @@ static ret_code_t nfc_ep_oob_bluetooth_device_address_encode(uint8_t  * const p_
     }
 
     /* Get BLE address */
-    #if (NRF_SD_BLE_API_VERSION == 2)
-        err_code = sd_ble_gap_address_get(&device_address);
-        if (err_code != NRF_SUCCESS)
-        {
-            return err_code;
-        }
-    #endif
-
-    #if (NRF_SD_BLE_API_VERSION == 3)
-        err_code = sd_ble_gap_addr_get(&device_address);
-        if (err_code != NRF_SUCCESS)
-        {
-            return err_code;
-        }
-    #endif
+    err_code = sd_ble_gap_addr_get(&device_address);
+    if (err_code != NRF_SUCCESS)
+    {
+        return err_code;
+    }
 
     /* Encode Bluetooth EP device address */
     memcpy(p_encoded_data, device_address.addr, NFC_EP_OOB_REC_GAP_ADDR_LEN);
@@ -134,26 +126,9 @@ static ret_code_t nfc_ep_oob_bluetooth_device_address_encode(uint8_t  * const p_
     return NRF_SUCCESS;
 }
 
-/**
- * @brief Function for constructing the payload for a Bluetooth Carrier Configuration EP record.
- *
- * This function encodes the record payload according to the BLE AD structure. It implements
- * an API compatible with @ref p_payload_constructor_t.
- *
- * @param[in]       p_ble_advdata   Pointer to the description of the payload.
- * @param[out]      p_buff          Pointer to payload destination. If NULL, function will
- *                                  calculate the expected size of the record payload.
- *
- * @param[in,out]   p_len           Size of available memory to write as input. Size of generated
- *                                  payload as output.
- *
- * @retval NRF_SUCCESS          If the record payload was encoded successfully.
- * @retval NRF_ERROR_NO_MEM     If available memory was not enough for record payload to be encoded.
- * @retval Other                If any other error occurred during record payload encoding.
- */
-static ret_code_t nfc_ep_oob_payload_constructor(ble_advdata_t * p_ble_advdata,
-                                                 uint8_t       * p_buff,
-                                                 uint32_t      * p_len)
+ret_code_t nfc_ep_oob_payload_constructor(ble_advdata_t * p_ble_advdata,
+                                          uint8_t       * p_buff,
+                                          uint32_t      * p_len)
 {
     ret_code_t  err_code  = NRF_SUCCESS;
     uint8_t   * p_ad_data = NULL;
@@ -210,29 +185,4 @@ static ret_code_t nfc_ep_oob_payload_constructor(ble_advdata_t * p_ble_advdata,
     return err_code;
 }
 
-
-nfc_ndef_record_desc_t * nfc_ep_oob_rec_declare(uint8_t                        rec_payload_id,
-                                                ble_advdata_t    const * const p_ble_advdata)
-{
-    static uint8_t payload_id = 0;
-
-    NFC_NDEF_GENERIC_RECORD_DESC_DEF( nfc_ep_oob_rec,
-                                      TNF_MEDIA_TYPE,
-                                      &payload_id,   // memory for possible ID value
-                                      0,             // no ID by default
-                                      (ep_oob_rec_type_field),
-                                      sizeof(ep_oob_rec_type_field),
-                                      nfc_ep_oob_payload_constructor,
-                                      NULL);
-
-    nfc_ndef_record_desc_t * nfc_ep_oob_rec = &NFC_NDEF_GENERIC_RECORD_DESC( nfc_ep_oob_rec);
-
-    /* Update record descriptor */
-    nfc_ep_oob_rec->p_payload_descriptor = (void *) p_ble_advdata;
-
-    /* Handle record ID configuration */
-    payload_id                = rec_payload_id;
-    nfc_ep_oob_rec->id_length = (rec_payload_id != 0) ? 1 : 0;
-
-    return nfc_ep_oob_rec;
-}
+#endif // NRF_MODULE_ENABLED(NFC_EP_OOB_REC)

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2012 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  *
  * @defgroup ble_tps TX Power Service
@@ -63,10 +62,23 @@
 #include <stdint.h>
 #include "ble.h"
 #include "ble_srv_common.h"
+#include "nrf_sdh_ble.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**@brief   Macro for defining a ble_tps instance.
+ *
+ * @param   _name   Name of the instance.
+ * @hideinitializer
+ */
+#define BLE_TPS_DEF(_name)                                                                          \
+static ble_tps_t _name;                                                                             \
+NRF_SDH_BLE_OBSERVER(_name ## _obs,                                                                 \
+                     BLE_TPS_BLE_OBSERVER_PRIO,                                                     \
+                     ble_tps_on_ble_evt, &_name)
+
 
 /**@brief TX Power Service init structure. This contains all options and data needed for
  *        initialization of the service. */
@@ -84,6 +96,7 @@ typedef struct
     uint16_t                  conn_handle;              /**< Handle of the current connection (as provided by the BLE stack, is BLE_CONN_HANDLE_INVALID if not in a connection). */
 } ble_tps_t;
 
+
 /**@brief Function for initializing the TX Power Service.
  *
  * @param[out]  p_hrs       TX Power Service structure. This structure will have to be supplied by
@@ -95,16 +108,18 @@ typedef struct
  */
 uint32_t ble_tps_init(ble_tps_t * p_hrs, const ble_tps_init_t * p_tps_init);
 
+
 /**@brief Function for handling the Application's BLE Stack events.
  *
  * @details Handles all events from the BLE stack of interest to the TX Power Service.
  *
- * @param[in]   p_tps      TX Power Service structure.
- * @param[in]   p_ble_evt  Event received from the BLE stack.
+ * @param[in]   p_ble_evt   Event received from the BLE stack.
+ * @param[in]   p_context   TX Power Service structure.
  */
-void ble_tps_on_ble_evt(ble_tps_t * p_tps, ble_evt_t * p_ble_evt);
+void ble_tps_on_ble_evt(ble_evt_t const * p_ble_evt, void * p_context);
 
-/**@brief Function for setting the state of the Sensor Contact Detected bit.
+
+/**@brief Function for setting the value of the TX Power Level characteristic.
  *
  * @param[in]   p_tps            TX Power Service structure.
  * @param[in]   tx_power_level   New TX Power Level (unit dBm, range -100 to 20).

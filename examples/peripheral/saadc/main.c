@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  * @defgroup nrf_adc_example main.c
  * @{
@@ -62,11 +61,10 @@
 #include "nrf_delay.h"
 #include "app_util_platform.h"
 #include "nrf_pwr_mgmt.h"
-#include "nrf_drv_power.h"
 
-#define NRF_LOG_MODULE_NAME "APP"
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 
 #define SAMPLES_IN_BUFFER 5
 volatile uint8_t state = 1;
@@ -137,11 +135,11 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
         APP_ERROR_CHECK(err_code);
 
         int i;
-        NRF_LOG_INFO("ADC event number: %d\r\n", (int)m_adc_evt_counter);
+        NRF_LOG_INFO("ADC event number: %d", (int)m_adc_evt_counter);
 
         for (i = 0; i < SAMPLES_IN_BUFFER; i++)
         {
-            NRF_LOG_INFO("%d\r\n", p_event->data.done.p_buffer[i]);
+            NRF_LOG_INFO("%d", p_event->data.done.p_buffer[i]);
         }
         m_adc_evt_counter++;
     }
@@ -177,16 +175,15 @@ int main(void)
     uint32_t err_code = NRF_LOG_INIT(NULL);
     APP_ERROR_CHECK(err_code);
 
-    err_code = nrf_drv_power_init(NULL);
-    APP_ERROR_CHECK(err_code);
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
 
-    ret_code_t ret_code = nrf_pwr_mgmt_init(0);
+    ret_code_t ret_code = nrf_pwr_mgmt_init();
     APP_ERROR_CHECK(ret_code);
 
-    NRF_LOG_INFO("SAADC HAL simple example.\r\n");
     saadc_init();
     saadc_sampling_event_init();
     saadc_sampling_event_enable();
+    NRF_LOG_INFO("SAADC HAL simple example started.");
 
     while (1)
     {

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,12 +37,11 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /**@file
  *
  * @defgroup sdk_nrf_dfu_types DFU types
  * @{
- * @ingroup  sdk_nrf_dfu
+ * @ingroup  nrf_dfu
  */
 
 #ifndef NRF_DFU_TYPES_H__
@@ -50,64 +49,59 @@
 
 #include <stdint.h>
 #include <stddef.h>
+
+#include "nrf.h"
 #include "nrf_mbr.h"
-#include "nrf_sdm.h"
+#include "app_util_platform.h"
+#include "sdk_config.h"
+
+#if defined(NRF_DFU_TRANSPORT_BLE) && NRF_DFU_TRANSPORT_BLE
+#include "ble_gap.h"
+#define SYSTEM_SERVICE_ATT_SIZE 8   /**< Size of the system service attribute length including CRC-16 at the end. */
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define INIT_COMMAND_MAX_SIZE       256     /**< Maximum size of the init command stored in dfu_settings. */
 
+#define INIT_COMMAND_MAX_SIZE   256 /**< Maximum size of the init command stored in dfu_settings. */
 
-/** @brief  Size of a flash codepage. This value is used for calculating the size of the reserved
- *          flash space in the bootloader region. It is checked against NRF_UICR->CODEPAGESIZE
- *          at run time to ensure that the region is correct.
+/** @brief  Size of a flash page. This value is used for calculating the size of the reserved
+ *          flash space in the bootloader region.
  */
 #if defined(NRF51)
-    #define CODE_PAGE_SIZE            (PAGE_SIZE_IN_WORDS*sizeof(uint32_t))
-#elif defined(NRF52)
-    #define CODE_PAGE_SIZE            (MBR_PAGE_SIZE_IN_WORDS*sizeof(uint32_t))
+    #define CODE_PAGE_SIZE            (PAGE_SIZE_IN_WORDS * sizeof(uint32_t))
+#elif defined(NRF52) || defined(NRF52840_XXAA)
+    #define CODE_PAGE_SIZE            (MBR_PAGE_SIZE_IN_WORDS * sizeof(uint32_t))
 #else
     #error "Architecture not set."
 #endif
 
-
 /** @brief  Maximum size of a data object.*/
-#ifdef NRF51
-
+#if defined(NRF51)
     #define DATA_OBJECT_MAX_SIZE           (CODE_PAGE_SIZE * 4)
-
-#elif NRF52
-
+#elif defined(NRF52_SERIES) || defined (__SDK_DOXYGEN__)
     #define DATA_OBJECT_MAX_SIZE           (CODE_PAGE_SIZE)
-
 #else
-
     #error "Architecture not set."
-
 #endif
 
 /** @brief  Page location of the bootloader settings address.
  */
-
-#if defined (NRF51 )
-
+#if defined  (NRF51)
     #define BOOTLOADER_SETTINGS_ADDRESS     (0x0003FC00UL)
-
-#elif defined ( NRF52 )
-
+#elif defined( NRF52810_XXAA )
+    #define BOOTLOADER_SETTINGS_ADDRESS (0x0002F000UL)
+#elif defined( NRF52832_XXAA )
     #define BOOTLOADER_SETTINGS_ADDRESS     (0x0007F000UL)
-
+#elif defined(NRF52840_XXAA)
+    #define BOOTLOADER_SETTINGS_ADDRESS     (0x000FF000UL)
 #else
-
     #error No valid target set for BOOTLOADER_SETTINGS_ADDRESS.
-
 #endif
 
-
-
-#if defined(NRF52)
+#define BOOTLOADER_SETTINGS_PAGE_SIZE       (CODE_PAGE_SIZE)
 
 /**
  * @brief   MBR parameters page in UICR.
@@ -116,50 +110,47 @@ extern "C" {
  *
  * @note If the value at the given location is 0xFFFFFFFF, no MBR parameters page is set.
  */
-#define NRF_UICR_MBR_PARAMS_PAGE_ADDRESS        (NRF_UICR_BASE + 0x18)
-
+#define NRF_UICR_MBR_PARAMS_PAGE_ADDRESS    (NRF_UICR_BASE + 0x18)
+#define NRF_MBR_PARAMS_PAGE_SIZE            (CODE_PAGE_SIZE)
 
 /** @brief Page location of the MBR parameters page address.
- *
  */
-#define NRF_MBR_PARAMS_PAGE_ADDRESS         (0x0007E000UL)
-
+#if defined(NRF52840_XXAA) || defined(NRF52840_XXAA_ENGA)
+    #define NRF_MBR_PARAMS_PAGE_ADDRESS         (0x000FE000UL)
+#elif defined(NRF52832_XXAA)
+    #define NRF_MBR_PARAMS_PAGE_ADDRESS         (0x0007E000UL)
+#elif defined(NRF52810_XXAA)
+    #define NRF_MBR_PARAMS_PAGE_ADDRESS (0x0002E000UL)
 #endif
 
-/** @brief  Size of the flash space reserved for application data.
+/** @brief  Size (in bytes) of the flash area reserved for application data.
+ *
+ * The area is found at the end of the application area, next to the start of
+ * the bootloader. This area will not be erased by the bootloader during a
+ * firmware upgrade. The default value is 3 pages which matches the size used
+ * in most SDK examples.
  */
 #ifndef DFU_APP_DATA_RESERVED
-#define DFU_APP_DATA_RESERVED               CODE_PAGE_SIZE * 3
+#define DFU_APP_DATA_RESERVED               (CODE_PAGE_SIZE * 3)
 #endif
-
 
 /** @brief Total size of the region between the SoftDevice and the bootloader.
  */
-#define DFU_REGION_TOTAL_SIZE               ((* (uint32_t *)NRF_UICR_BOOTLOADER_START_ADDRESS) - CODE_REGION_1_START)
+#define DFU_REGION_END(bootloader_start_addr) ((bootloader_start_addr) - (DFU_APP_DATA_RESERVED))
 
-
-/** @brief Start address of the SoftDevice (excluding the area for the MBR).
- */
-#define SOFTDEVICE_REGION_START             MBR_SIZE
-
-
-/** @brief Size of the Code Region 0, found in the UICR.CLEN0 register.
- *
- * @details This value is identical to the start of Code Region 1. This value is used for
- *          compilation safety, because the linker will fail if the application expands
- *          into the bootloader. At run time, the bootloader uses the value found in UICR.CLEN0.
- */
-
-#ifndef CODE_REGION_1_START
-#define CODE_REGION_1_START                 SD_SIZE_GET(MBR_SIZE)
+#ifdef BLE_STACK_SUPPORT_REQD
+#define DFU_REGION_START                    (nrf_dfu_bank0_start_addr())
+#else
+#define DFU_REGION_START                    (MBR_SIZE)
 #endif
+
+#define DFU_REGION_TOTAL_SIZE               ((DFU_REGION_END) - (DFU_REGION_START))
 
 #define NRF_DFU_CURRENT_BANK_0 0x00
 #define NRF_DFU_CURRENT_BANK_1 0x01
 
 #define NRF_DFU_BANK_LAYOUT_DUAL   0x00
 #define NRF_DFU_BANK_LAYOUT_SINGLE 0x01
-
 
 /** @brief DFU bank state codes.
  *
@@ -173,7 +164,6 @@ extern "C" {
 #define NRF_DFU_BANK_VALID_BL    0xAA /**< Valid bootloader. */
 #define NRF_DFU_BANK_VALID_SD_BL 0xAC /**< Valid SoftDevice and bootloader. */
 
-
 /** @brief Description of a single bank. */
 #pragma pack(4)
 typedef struct
@@ -186,20 +176,89 @@ typedef struct
 /**@brief DFU progress.
  *
  * Be aware of the difference between objects and firmware images. A firmware image consists of multiple objects, each of a maximum size @ref DATA_OBJECT_MAX_SIZE.
+ *
+ * @note The union inside this struct is cleared when CREATE_OBJECT of command type is executed, and when there is a valid post-validation.
+ *       In DFU activation (after reset) the @ref dfu_progress_t::update_start_address will be used in case of a SD/SD+BL update.
  */
+ANON_UNIONS_ENABLE;
 typedef struct
 {
     uint32_t command_size;              /**< The size of the current init command stored in the DFU settings. */
     uint32_t command_offset;            /**< The offset of the currently received init command data. The offset will increase as the init command is received. */
     uint32_t command_crc;               /**< The calculated CRC of the init command (calculated after the transfer is completed). */
-
     uint32_t data_object_size;          /**< The size of the last object created. Note that this size is not the size of the whole firmware image.*/
-
-    uint32_t firmware_image_crc;        /**< CRC value of the current firmware (continuously calculated as data is received). */
-    uint32_t firmware_image_crc_last;   /**< The CRC of the last executed object. */
-    uint32_t firmware_image_offset;     /**< The offset of the current firmware image being transferred. Note that this offset is the offset in the entire firmware image and not only the current object. */
-    uint32_t firmware_image_offset_last;/**< The offset of the last executed object from the start of the firmware image. */
+    union
+    {
+        struct
+        {
+            uint32_t firmware_image_crc;        /**< CRC value of the current firmware (continuously calculated as data is received). */
+            uint32_t firmware_image_crc_last;   /**< The CRC of the last executed object. */
+            uint32_t firmware_image_offset;     /**< The offset of the current firmware image being transferred. Note that this offset is the offset in the entire firmware image and not only the current object. */
+            uint32_t firmware_image_offset_last;/**< The offset of the last executed object from the start of the firmware image. */
+        };
+        struct
+        {
+            uint32_t update_start_address;      /**< Value indicating the start address of the new firmware (before copy). It's always used, but it's most important for an SD/SD+BL update where the SD changes size or if the DFU process had a power loss when updating a SD with changed size. */
+        };
+    };
 } dfu_progress_t;
+ANON_UNIONS_DISABLE;
+
+/** @brief Event types in the bootloader and DFU process. */
+typedef enum
+{
+    NRF_DFU_EVT_DFU_INITIALIZED,        /**< Starting DFU. */
+    NRF_DFU_EVT_TRANSPORT_ACTIVATED,    /**< Transport activated (e.g. BLE connected, USB plugged in). */
+    NRF_DFU_EVT_TRANSPORT_DEACTIVATED,  /**< Transport deactivated (e.g. BLE disconnected, USB plugged out). */
+    NRF_DFU_EVT_DFU_STARTED,            /**< DFU process started. */
+    NRF_DFU_EVT_OBJECT_RECEIVED,        /**< A DFU data object has been received. */
+    NRF_DFU_EVT_DFU_FAILED,             /**< DFU process has failed, been interrupted, or hung. */
+    NRF_DFU_EVT_DFU_COMPLETED,          /**< DFU process completed. */
+    NRF_DFU_EVT_DFU_ABORTED,            /**< DFU process aborted. */
+} nrf_dfu_evt_type_t;
+
+/**
+ * @brief Function for notifying DFU state.
+ */
+typedef void (*nrf_dfu_observer_t)(nrf_dfu_evt_type_t notification);
+
+
+#if defined(NRF_DFU_TRANSPORT_BLE) && NRF_DFU_TRANSPORT_BLE
+
+typedef struct
+{
+    uint32_t            crc;                                    /**< CRC of the rest of the parameters in this struct. */
+    ble_gap_id_key_t    ble_id;                                 /**< BLE GAP identity key of the device that initiated the DFU process. */
+    ble_gap_enc_key_t   enc_key;                                /**< Encryption key structure containing encrypted diversifier and LTK for reestablishing the bond. */
+    uint8_t             sys_serv_attr[SYSTEM_SERVICE_ATT_SIZE]; /**< System service attributes for restoring of Service Changed Indication setting in DFU mode. */
+} nrf_dfu_peer_data_t;
+
+typedef enum
+{
+    DFU_PEER_DATA_STATE_INVALID             = 0,
+    DFU_PEER_DATA_STATE_INITIALIZED         = 1,
+    DFU_PEER_DATA_STATE_WRITE_REQUESTED     = 2,
+    DFU_PEER_DATA_STATE_WRITE_FINISHED      = 3,
+    DFU_PEER_DATA_STATE_WRITE_FAILED        = 4,
+} nrf_dfu_peer_data_state_t;
+
+typedef struct
+{
+    uint32_t    crc;                            /**< CRC of the rest of the parameters in this struct. Calculated by the bootloader. */
+    uint8_t     name[20];                       /**< New advertisement name to set. */
+    uint32_t    len;                            /**< Length of the advertisement name. */
+} nrf_dfu_adv_name_t;
+
+typedef enum
+{
+    DFU_ADV_NAME_STATE_INVALID              = 0,
+    DFU_ADV_NAME_STATE_INITIALIZED          = 1,
+    DFU_ADV_NAME_STATE_WRITE_REQUESTED      = 2,
+    DFU_ADV_NAME_STATE_WRITE_FINISHED       = 3,
+    DFU_ADV_NAME_STATE_WRITE_FAILED         = 4,
+} nrf_dfu_set_adv_name_state_t;
+
+#endif // NRF_DFU_TRANSPORT_BLE
 
 
 /**@brief DFU settings for application and bank data.
@@ -207,7 +266,7 @@ typedef struct
 typedef struct
 {
     uint32_t            crc;                /**< CRC for the stored DFU settings, not including the CRC itself. If 0xFFFFFFF, the CRC has never been calculated. */
-    uint32_t            settings_version;   /**< Version of the currect dfu settings struct layout.*/
+    uint32_t            settings_version;   /**< Version of the current DFU settings struct layout. */
     uint32_t            app_version;        /**< Version of the last stored application. */
     uint32_t            bootloader_version; /**< Version of the last stored bootloader. */
 
@@ -218,15 +277,21 @@ typedef struct
     nrf_dfu_bank_t      bank_1;             /**< Bank 1. */
 
     uint32_t            write_offset;       /**< Write offset for the current operation. */
-    uint32_t            sd_size;            /**< SoftDevice size (if combined BL and SD). */
+    uint32_t            sd_size;            /**< Size of the SoftDevice. */
 
     dfu_progress_t      progress;           /**< Current DFU progress. */
 
     uint32_t            enter_buttonless_dfu;
     uint8_t             init_command[INIT_COMMAND_MAX_SIZE];  /**< Buffer for storing the init command. */
-} nrf_dfu_settings_t;
-#pragma pack() // revert pack settings
 
+#if defined(NRF_DFU_TRANSPORT_BLE) && NRF_DFU_TRANSPORT_BLE
+    nrf_dfu_peer_data_t peer_data;          /**< Not included in calculated CRC. */
+    nrf_dfu_adv_name_t  adv_name;           /**< Not included in calculated CRC. */
+#endif // NRF_DFU_TRANSPORT_BLE
+
+} nrf_dfu_settings_t;
+
+#pragma pack() // revert pack settings
 
 #ifdef __cplusplus
 }

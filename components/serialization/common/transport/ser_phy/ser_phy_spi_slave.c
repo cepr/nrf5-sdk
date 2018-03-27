@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /**@file
  *
  * @defgroup ser_phy_spi_phy_driver_slave ser_phy_nrf51_spi_slave.c
@@ -66,6 +65,12 @@
 #define SER_PHY_SPI_ORC_CHARACTER 0xFF //SPI over-read character. Character clocked out after an over-read of the transmit buffer
 
 static nrf_drv_spis_t m_spis = NRF_DRV_SPIS_INSTANCE(SER_PHY_SPI_SLAVE_INSTANCE);
+
+#ifdef NRF_SPIS0
+#define SPI_SLAVE_REG              NRF_SPIS0
+#else
+#define SPI_SLAVE_REG              NRF_SPIS1
+#endif
 
 //SPI raw peripheral device configuration data
 typedef struct
@@ -450,7 +455,7 @@ static void spi_slave_ppi_init(void)
 {
     uint32_t rdy_task = nrf_drv_gpiote_out_task_addr_get(m_spi_slave_raw_config.pin_rdy);
     //Configure PPI channel  to clear /RDY line
-    NRF_PPI->CH[m_spi_slave_raw_config.ppi_rdy_ch].EEP = (uint32_t)(&NRF_SPIS1->EVENTS_END);
+    NRF_PPI->CH[m_spi_slave_raw_config.ppi_rdy_ch].EEP = (uint32_t)(&SPI_SLAVE_REG->EVENTS_END);
     NRF_PPI->CH[m_spi_slave_raw_config.ppi_rdy_ch].TEP = rdy_task;
 
     //this works only for channels 0..15 - but soft device is using 8-15 anyway
@@ -469,13 +474,13 @@ static void spi_slave_gpio_init(void)
 /* ser_phy API function */
 void ser_phy_interrupts_enable(void)
 {
-    (void)sd_nvic_EnableIRQ(m_spis.irq);
+    (void)sd_nvic_EnableIRQ(nrfx_get_irq_number(m_spis.p_reg));
 }
 
 /* ser_phy API function */
 void ser_phy_interrupts_disable(void)
 {
-    (void)sd_nvic_DisableIRQ(m_spis.irq);
+    (void)sd_nvic_DisableIRQ(nrfx_get_irq_number(m_spis.p_reg));
 }
 
 /* ser_phy API function */

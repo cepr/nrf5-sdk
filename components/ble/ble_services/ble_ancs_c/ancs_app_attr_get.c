@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
- 
 /* Disclaimer: This client implementation of the Apple Notification Center Service can and will be changed at any time by Nordic Semiconductor ASA.
  * Server implementations such as the ones found in iOS can be changed at any time by Apple and may cause this client implementation to stop working.
  */
@@ -49,9 +48,11 @@
 #include "nrf_log.h"
 #include "string.h"
 
-#define GATTC_OPCODE_SIZE                1                                                                     /**< Size of the GATTC OPCODE. */
-#define GATTC_ATTR_HANDLE_SIZE           4                                                                     /**< Size of the Attribute handle Size. */
-#define ANCS_GATTC_WRITE_PAYLOAD_LEN_MAX (GATT_MTU_SIZE_DEFAULT - GATTC_OPCODE_SIZE - GATTC_ATTR_HANDLE_SIZE)  /**< Maximum Length of the data we can send in one write. */
+#define GATTC_OPCODE_SIZE                1      /**< Size of the GATTC OPCODE. */
+#define GATTC_ATTR_HANDLE_SIZE           4      /**< Size of the Attribute handle Size. */
+
+
+#define ANCS_GATTC_WRITE_PAYLOAD_LEN_MAX (BLE_GATT_ATT_MTU_DEFAULT - GATTC_OPCODE_SIZE - GATTC_ATTR_HANDLE_SIZE)  /**< Maximum Length of the data we can send in one write. */
 
 
 /**@brief Enum to keep track of the state based encoding while requesting App attributes. */
@@ -74,7 +75,7 @@ typedef enum
 */
 static bool app_attr_is_requested(ble_ancs_c_t * p_ancs, uint32_t attr_id)
 {
-    if(p_ancs->ancs_app_attr_list[attr_id].get == true)
+    if (p_ancs->ancs_app_attr_list[attr_id].get == true)
     {
         return true;
     }
@@ -91,9 +92,9 @@ static bool app_attr_is_requested(ble_ancs_c_t * p_ancs, uint32_t attr_id)
 static uint32_t app_attr_nb_to_get(ble_ancs_c_t * p_ancs)
 {
     uint32_t attr_nb_to_get = 0;
-    for(uint32_t i = 0; i < (sizeof(p_ancs->ancs_app_attr_list)/sizeof(ble_ancs_c_attr_list_t)); i++)
+    for (uint32_t i = 0; i < (sizeof(p_ancs->ancs_app_attr_list)/sizeof(ble_ancs_c_attr_list_t)); i++)
     {
-        if(app_attr_is_requested(p_ancs,i))
+        if (app_attr_is_requested(p_ancs,i))
         {
             attr_nb_to_get++;
         }
@@ -117,7 +118,7 @@ static void queued_write_tx_message(uint16_t       conn_handle,
                                     uint32_t     * p_index,
                                     tx_message_t * p_msg)
 {
-    NRF_LOG_DEBUG("Starting new TX message.\r\n");
+    NRF_LOG_DEBUG("Starting new TX message.");
 
     p_msg->conn_handle                         = conn_handle;
     p_msg->type                                = WRITE_REQ;
@@ -136,7 +137,7 @@ static void queued_write_tx_message(uint16_t       conn_handle,
 /**@brief Function for encoding the Command ID as part of assembling a "Get App Attributes" command.
  *
  * @param[in]     p_ancs     iOS notification structure. This structure must be supplied by
- *                           the application. It identifies the particular client instance to use. 
+ *                           the application. It identifies the particular client instance to use.
  * @param[in]     p_index    Pointer to the length encoded so far for the current write.
  * @param[in]     p_offset   Pointer to the accumulated offset for the next write.
  * @param[in,out] p_msg      Pointer to the tx message that will be filled out in this function.
@@ -145,7 +146,7 @@ static encode_app_attr_t app_attr_encode_cmd_id(ble_ancs_c_t  * p_ancs,
                                                 uint32_t      * index,
                                                 tx_message_t  * p_msg)
 {
-    NRF_LOG_DEBUG("Encoding Command ID\r\n");
+    NRF_LOG_DEBUG("Encoding Command ID");
 
     // Encode Command ID.
     p_msg->req.write_req.gattc_value[(*index)++] = BLE_ANCS_COMMAND_ID_GET_APP_ATTRIBUTES;
@@ -172,8 +173,8 @@ static encode_app_attr_t app_attr_encode_app_id(ble_ancs_c_t  * p_ancs,
                                                 const uint32_t  app_id_len,
                                                 uint32_t      * p_app_id_bytes_encoded_count)
 {
-    NRF_LOG_DEBUG("Encoding APP ID\r\n");
-    if(*p_index >= ANCS_GATTC_WRITE_PAYLOAD_LEN_MAX)
+    NRF_LOG_DEBUG("Encoding APP ID");
+    if (*p_index >= ANCS_GATTC_WRITE_PAYLOAD_LEN_MAX)
     {
         queued_write_tx_message(p_ancs->conn_handle, p_ancs->service.control_point_char.handle_value, p_offset, p_index, p_msg);
         *(p_offset) += *p_index;
@@ -181,17 +182,17 @@ static encode_app_attr_t app_attr_encode_app_id(ble_ancs_c_t  * p_ancs,
     }
 
     //Encode App Identifier.
-    if(*p_app_id_bytes_encoded_count == app_id_len)
+    if (*p_app_id_bytes_encoded_count == app_id_len)
     {
         p_msg->req.write_req.gattc_value[(*p_index)++] = '\0';
         (*p_app_id_bytes_encoded_count)++;
     }
-    NRF_LOG_DEBUG("%c\r\n", p_app_id[(*p_app_id_bytes_encoded_count)]);
-    if(*p_app_id_bytes_encoded_count < app_id_len)
+    NRF_LOG_DEBUG("%c", p_app_id[(*p_app_id_bytes_encoded_count)]);
+    if (*p_app_id_bytes_encoded_count < app_id_len)
     {
         p_msg->req.write_req.gattc_value[(*p_index)++] = p_app_id[(*p_app_id_bytes_encoded_count)++];
     }
-    if(*p_app_id_bytes_encoded_count > app_id_len)
+    if (*p_app_id_bytes_encoded_count > app_id_len)
     {
         return APP_ATTR_ATTR_ID;
     }
@@ -214,8 +215,8 @@ static encode_app_attr_t app_attr_encode_attr_id(ble_ancs_c_t  * p_ancs,
                                                  uint32_t      * p_attr_count,
                                                  uint32_t      * attr_get_total_nb)
 {
-    NRF_LOG_DEBUG("Encoding Attribute ID\r\n");
-    if((*p_index) >= ANCS_GATTC_WRITE_PAYLOAD_LEN_MAX)
+    NRF_LOG_DEBUG("Encoding Attribute ID");
+    if ((*p_index) >= ANCS_GATTC_WRITE_PAYLOAD_LEN_MAX)
     {
         queued_write_tx_message(p_ancs->conn_handle,
                                 p_ancs->service.control_point_char.handle_value,
@@ -231,7 +232,7 @@ static encode_app_attr_t app_attr_encode_attr_id(ble_ancs_c_t  * p_ancs,
             p_msg->req.write_req.gattc_value[(*p_index)] = *p_attr_count;
             p_ancs->number_of_requested_attr++;
             (*p_index)++;
-            NRF_LOG_DEBUG("offset %i\r\n", *p_offset);
+            NRF_LOG_DEBUG("offset %i", *p_offset);
         }
         (*p_attr_count)++;
     }
@@ -251,7 +252,7 @@ static encode_app_attr_t app_attr_encode_attr_id(ble_ancs_c_t  * p_ancs,
  */
 static void app_attr_execute_write(uint16_t conn_handle, uint16_t handle_value, tx_message_t * p_msg)
 {
-    NRF_LOG_DEBUG("Sending Execute Write.\r\n");
+    NRF_LOG_DEBUG("Sending Execute Write.");
     memset(p_msg,0,sizeof(tx_message_t));
 
     p_msg->req.write_req.gattc_params.handle   = handle_value;
@@ -263,7 +264,7 @@ static void app_attr_execute_write(uint16_t conn_handle, uint16_t handle_value, 
     p_msg->req.write_req.gattc_params.len       = 0;
     p_msg->conn_handle                          = conn_handle;
     p_msg->type                                 = WRITE_REQ;
-    
+
     tx_buffer_insert(p_msg);
 }
 
@@ -289,14 +290,15 @@ static uint32_t app_attr_get(ble_ancs_c_t  * p_ancs,
     uint32_t          app_id_bytes_encoded_count = 0;
     encode_app_attr_t state                      = APP_ATTR_COMMAND_ID;
     p_ancs->number_of_requested_attr             = 0;
-    uint32_t attr_get_total_nb                   = app_attr_nb_to_get(p_ancs);
-    tx_message_t      p_msg;
-    memset(&p_msg,0,sizeof(tx_message_t));
 
-    NRF_LOG_DEBUG("Attribute Get Started.\r\n");
-    while(state != APP_ATTR_DONE)
+    uint32_t     attr_get_total_nb = app_attr_nb_to_get(p_ancs);
+    tx_message_t p_msg;
+
+    memset(&p_msg, 0, sizeof(tx_message_t));
+
+    while (state != APP_ATTR_DONE)
     {
-        switch(state)
+        switch (state)
         {
             case APP_ATTR_COMMAND_ID:
                 state = app_attr_encode_cmd_id(p_ancs,
@@ -335,9 +337,9 @@ static uint32_t app_attr_get(ble_ancs_c_t  * p_ancs,
     app_attr_execute_write(p_ancs->conn_handle,
                            p_ancs->service.control_point_char.handle_value,
                            &p_msg);
-    
+
     p_ancs->parse_info.expected_number_of_attrs = p_ancs->number_of_requested_attr;
-    
+
     tx_buffer_process();
     return NRF_SUCCESS;
 }
@@ -349,11 +351,11 @@ uint32_t ancs_c_app_attr_request(ble_ancs_c_t          * p_ancs,
 {
     uint32_t err_code;
 
-    if(len == 0)
+    if (len == 0)
     {
         return NRF_ERROR_DATA_SIZE;
     }
-    if(p_app_id[len] != '\0') // App id to be requestes must be NULL terminated
+    if (p_app_id[len] != '\0') // App id to be requestes must be NULL terminated
     {
         return NRF_ERROR_INVALID_PARAM;
     }

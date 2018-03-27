@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -43,9 +43,10 @@
 #include "boards.h"
 #include "app_error.h"
 #include <string.h>
-#define NRF_LOG_MODULE_NAME "APP"
+
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 
 #define SPIS_INSTANCE 1 /**< SPIS instance index. */
 static const nrf_drv_spis_t spis = NRF_DRV_SPIS_INSTANCE(SPIS_INSTANCE);/**< SPIS instance. */
@@ -67,7 +68,7 @@ void spis_event_handler(nrf_drv_spis_event_t event)
     if (event.evt_type == NRF_DRV_SPIS_XFER_DONE)
     {
         spis_xfer_done = true;
-        NRF_LOG_INFO(" Transfer completed. Received: %s\r\n",(uint32_t)m_rx_buf);
+        NRF_LOG_INFO(" Transfer completed. Received: %s",(uint32_t)m_rx_buf);
     }
 }
 
@@ -78,10 +79,12 @@ int main(void)
     // (when the CPU is in sleep mode).
     NRF_POWER->TASKS_CONSTLAT = 1;
 
-    bsp_board_leds_init();
+    bsp_board_init(BSP_INIT_LEDS);
 
     APP_ERROR_CHECK(NRF_LOG_INIT(NULL));
-    NRF_LOG_INFO("SPIS example\r\n");
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
+
+    NRF_LOG_INFO("SPIS example");
 
     nrf_drv_spis_config_t spis_config = NRF_DRV_SPIS_DEFAULT_CONFIG;
     spis_config.csn_pin               = APP_SPIS_CS_PIN;

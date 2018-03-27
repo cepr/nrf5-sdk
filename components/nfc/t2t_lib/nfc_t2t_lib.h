@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Telit Communications Cyprus Ltd
+ * Copyright (c) 2015 - 2018, Telit Communications Cyprus Ltd
  * 
  * All rights reserved.
  * 
@@ -58,6 +58,10 @@
 #include <string.h>
 #include <sdk_errors.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define NFC_T2T_SIZEOF_INTERNAL_BYTES 10    ///< T2T internal byte size.
 #define NFC_T2T_MAX_PAYLOAD_SIZE      988   ///< Maximum NDEF message size.
 #define NFC_T2T_MAX_PAYLOAD_SIZE_RAW  1008  ///< No NDEF-TLV and no implicit lock bytes at the end.
@@ -87,7 +91,11 @@ typedef enum
 
 typedef enum
 {
-    NFC_T2T_PARAM_TESTING       ///< Used for unit tests.
+    NFC_T2T_PARAM_TESTING,      ///< Used for unit tests.
+    NFC_T2T_PARAM_NFCID1,       /**< NFCID1 value, data can be 4, 7, or 10 bytes long (single, double, or triple size).
+                                     To use default NFCID1 of specific length pass one byte containing requested length.
+                                     Default 7-byte NFCID1 will be used if this parameter was not set. This parameter can be
+                                     set before nfc_t2t_setup() to set initial NFCID1 and it can be changed later. */
 } nfc_t2t_param_id_t;
 
 /** @brief Callback to pass events from NFC T2T Library to application.
@@ -170,7 +178,9 @@ ret_code_t nfc_t2t_parameter_get(nfc_t2t_param_id_t id, void * p_data, size_t * 
  * If an invalid size is given (too big), the function returns with an error
  * and the currently registered payload is left unchanged.
  *
- * @param[in] p_payload        Pointer to the memory area containing the payload to send.
+ * @note Provided pointer must point to RAM region.
+ *
+ * @param[in] p_payload        Pointer to the memory area in RAM containing the payload to send.
  * @param[in] payload_length   Size of the payload in bytes.
  *
  * @retval NRF_SUCCESS If the operation was successful. If one 
@@ -197,7 +207,9 @@ ret_code_t nfc_t2t_payload_set(const uint8_t * p_payload, size_t payload_length)
  * If an invalid size is given (too big), the function returns with an error
  * and the currently registered payload is left unchanged.
  *
- * @param[in] p_payload        Pointer to the memory area containing the payload to send.
+ * @note Provided pointer must points to RAM region.
+ *
+ * @param[in] p_payload        Pointer to the memory area in RAM containing the payload to send.
  * @param[in] payload_length   Size of the payload in bytes.
  *
  * @retval NRF_SUCCESS If the operation was successful. If one 
@@ -254,6 +266,10 @@ ret_code_t nfc_t2t_emulation_stop(void);
  * @retval NRF_SUCCESS This function always succeeds.
  */
 ret_code_t nfc_t2t_done(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 /** @} */
 #endif // NFC_T2T_LIB_H__

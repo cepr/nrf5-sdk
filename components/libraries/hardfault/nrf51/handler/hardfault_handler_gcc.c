@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -42,6 +42,8 @@
 #include <stdint.h>
 #include "compiler_abstraction.h"
 
+extern void HardFault_c_handler(uint32_t *);
+
 void HardFault_Handler(void) __attribute__(( naked ));
 
 void HardFault_Handler(void)
@@ -75,10 +77,11 @@ void HardFault_Handler(void)
     "   movs  r0, #0                           \n"
 
     "HardFault_Handler_Continue:               \n"
-    "   ldr r3, =HardFault_c_handler           \n"
+    "   ldr r3, =%0                            \n"
     "   bx r3                                  \n"
 
-    "   .align                                 \n"
+    "   .ltorg                                 \n"
+    : : "X"(HardFault_c_handler)
     );
 }
 #endif //NRF_MODULE_ENABLED(HARDFAULT_HANDLER)

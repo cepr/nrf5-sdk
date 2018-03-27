@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -76,7 +76,7 @@ SVC_REGISTER_FUNCTION(const nrf_svc_func_reg_t nrf_crypto_svci_sign) =
     .func_ptr = (nrf_svc_func_t)&nrf_crypto_sign
 };
 
-#endif
+#endif // #ifndef NRF51
 
 SVC_REGISTER_FUNCTION(const nrf_svc_func_reg_t nrf_crypto_svci_verify) =
 {

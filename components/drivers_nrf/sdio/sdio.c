@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2009 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2009 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #include <stdint.h>
 
 #include "nrf.h"

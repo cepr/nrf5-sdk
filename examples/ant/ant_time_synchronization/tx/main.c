@@ -48,43 +48,36 @@
  * ABOVE LIMITATIONS MAY NOT APPLY TO YOU.
  * 
  */
-
-/**@file
- * @defgroup nrf_ant_time_sync_tx_example ANT Time Sync TX Example
- * @{
- * @ingroup nrf_ant_time_sync
- *
- * @brief Example of ANT Time Synchronization TX.
- *
+/*
  * Before compiling this example for NRF52, complete the following steps:
- * - Download the S332 SoftDevice from <a href="https://www.thisisant.com/developer/components/nrf52832" target="_blank">thisisant.com</a>.
- * - Extract the downloaded zip file and copy the S332 SoftDevice headers to <tt>\<InstallFolder\>/components/softdevice/s332/headers</tt>.
+ * - Download the S212 SoftDevice from <a href="https://www.thisisant.com/developer/components/nrf52832" target="_blank">thisisant.com</a>.
+ * - Extract the downloaded zip file and copy the S212 SoftDevice headers to <tt>\<InstallFolder\>/components/softdevice/s212/headers</tt>.
  * If you are using Keil packs, copy the files into a @c headers folder in your example folder.
  * - Make sure that @ref ANT_LICENSE_KEY in @c nrf_sdm.h is uncommented.
  */
 
 #include <string.h>
+#include "boards.h"
 #include "app_error.h"
+#include "nrf_drv_rtc.h"
+#include "nrf_sdh.h"
+#include "nrf_sdh_ant.h"
+#include "nrf_pwr_mgmt.h"
 #include "ant_interface.h"
 #include "ant_parameters.h"
-#include "ant_stack_config.h"
 #include "ant_channel_config.h"
-#include "boards.h"
-#include "nordic_common.h"
-#include "nrf_drv_rtc.h"
-#include "softdevice_handler.h"
 
-// Channel configuration.
-#define ANT_BROADCAST_CHANNEL_NUMBER    0x00 /**< ANT Channel 0. */
-#define EXT_ASSIGN_NONE                 0x00 /**< ANT Ext Assign. */
+#include "nrf_log.h"
+#include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 
 // Arbitrary Page Numbers
 #define TIME_SYNC_PAGE                  0x01
 #define INVALID_PAGE                    0xFF
 
 // Miscellaneous defines.
-#define ANT_NETWORK_NUMBER              0x00  /**< Default public network number. */
 #define ANT_RTC_CHANNEL                 0
+#define APP_ANT_OBSERVER_PRIO           1       /**< Application's ANT observer priority. You shouldn't need to modify this value. */
 
 const nrf_drv_rtc_t m_rtc = NRF_DRV_RTC_INSTANCE(1); /**< Declaring an instance of nrf_drv_rtc for RTC1. */
 
@@ -115,23 +108,22 @@ void ant_time_sync_message_send()
     message_payload[7] = (uint8_t) LSB_32(counter >> 8);   // 2-byte counter MSB
 
     // Broadcast the data.
-    err_code = sd_ant_time_sync_broadcast_tx(ANT_BROADCAST_CHANNEL_NUMBER,
+    err_code = sd_ant_time_sync_broadcast_tx(BROADCAST_CHANNEL_NUMBER,
                                              ANT_STANDARD_DATA_PAYLOAD_SIZE,
                                              message_payload);
     APP_ERROR_CHECK(err_code);
 }
 
 
-/**@brief Function for dispatching an ANT stack event to all modules with an ANT stack event handler.
- *
- * @details This function is called from the ANT Stack event interrupt handler after an ANT stack
- *          event has been received.
+/**@brief Function for handling a ANT stack event.
  *
  * @param[in] p_ant_evt  ANT stack event.
+ * @param[in] p_context  Context.
  */
-void ant_evt_dispatch(ant_evt_t * p_ant_evt)
+void ant_evt_handler(ant_evt_t * p_ant_evt, void * p_context)
 {
-    if (p_ant_evt->channel == ANT_BROADCAST_CHANNEL_NUMBER)
+    nrf_pwr_mgmt_feed();
+    if (p_ant_evt->channel == BROADCAST_CHANNEL_NUMBER)
     {
         switch (p_ant_evt->event)
         {
@@ -145,6 +137,8 @@ void ant_evt_dispatch(ant_evt_t * p_ant_evt)
     }
 }
 
+NRF_SDH_ANT_OBSERVER(m_ant_observer, APP_ANT_OBSERVER_PRIO, ant_evt_handler, NULL);
+
 
 /**@brief Function for ANT stack initialization.
  *
@@ -152,17 +146,12 @@ void ant_evt_dispatch(ant_evt_t * p_ant_evt)
  */
 static void softdevice_setup(void)
 {
-    uint32_t err_code;
-
-    nrf_clock_lf_cfg_t clock_lf_cfg = NRF_CLOCK_LFCLKSRC;
-
-    err_code = softdevice_ant_evt_handler_set(ant_evt_dispatch);
+    ret_code_t err_code = nrf_sdh_enable_request();
     APP_ERROR_CHECK(err_code);
 
-    err_code = softdevice_handler_init(&clock_lf_cfg, NULL, 0, NULL);
-    APP_ERROR_CHECK(err_code);
+    ASSERT(nrf_sdh_is_enabled());
 
-    err_code = ant_stack_static_config();
+    err_code = nrf_sdh_ant_enable();
     APP_ERROR_CHECK(err_code);
 }
 
@@ -209,22 +198,22 @@ static void ant_channel_tx_broadcast_setup(void)
     // Configure ANT Channel
     ant_channel_config_t broadcast_channel_config =
     {
-        .channel_number    = ANT_BROADCAST_CHANNEL_NUMBER,
+        .channel_number    = BROADCAST_CHANNEL_NUMBER,
         .channel_type      = CHANNEL_TYPE_MASTER,
-        .ext_assign        = EXT_ASSIGN_NONE,
+        .ext_assign        = 0x00,
         .rf_freq           = RF_FREQ,
         .transmission_type = CHAN_ID_TRANS_TYPE,
         .device_type       = CHAN_ID_DEV_TYPE,
         .device_number     = CHAN_ID_DEV_NUM,
         .channel_period    = CHAN_PERIOD,
-        .network_number    = ANT_NETWORK_NUMBER,
+        .network_number    = ANT_NETWORK_NUM,
     };
 
     err_code = ant_channel_init(&broadcast_channel_config);
     APP_ERROR_CHECK(err_code);
 
     // Open channel.
-    err_code = sd_ant_channel_open(ANT_BROADCAST_CHANNEL_NUMBER);
+    err_code = sd_ant_channel_open(BROADCAST_CHANNEL_NUMBER);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -253,12 +242,24 @@ static void rtc_config(void)
 }
 
 
-/** @brief Function configuring GPIO for pin toggling.
+/**@brief Function for the Power Manager initialization.
  */
-static void leds_config(void)
+static void utils_setup(void)
 {
-    // Configure all LED's on board.
-    bsp_board_leds_init();
+    ret_code_t err_code = nrf_pwr_mgmt_init();
+    APP_ERROR_CHECK(err_code);
+}
+
+
+/**
+ *@brief Function for initializing logging.
+ */
+static void log_init(void)
+{
+    ret_code_t err_code = NRF_LOG_INIT(NULL);
+    APP_ERROR_CHECK(err_code);
+
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
 }
 
 
@@ -266,18 +267,19 @@ static void leds_config(void)
  */
 int main(void)
 {
+    log_init();
+    utils_setup();
     softdevice_setup();
     rtc_config();
-    leds_config();
+    bsp_board_init(BSP_INIT_LEDS);
     ant_channel_tx_broadcast_setup();
+
+    NRF_LOG_INFO("ANT Time Synchronization TX example started.");
 
     // Main loop.
     for (;;)
     {
-        // Put CPU in sleep if possible.
-        uint32_t err_code = sd_app_evt_wait();
-        APP_ERROR_CHECK(err_code);
+        NRF_LOG_FLUSH();
+        nrf_pwr_mgmt_run();
     }
 }
-
-

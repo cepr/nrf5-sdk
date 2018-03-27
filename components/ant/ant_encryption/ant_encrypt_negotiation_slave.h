@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #ifndef ANT_ENCRYPT_NEGOTIATION_SLAVE_H__
 #define ANT_ENCRYPT_NEGOTIATION_SLAVE_H__
 
@@ -56,7 +55,7 @@
  */
 
 #include <stdint.h>
-#include "ant_stack_handler_types.h"
+#include "nrf_sdh_ant.h"
 #include "ant_encrypt_config.h"
 
 #ifdef __cplusplus

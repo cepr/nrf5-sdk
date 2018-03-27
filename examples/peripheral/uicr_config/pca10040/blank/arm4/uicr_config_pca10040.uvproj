@@ -28,7 +28,7 @@
           <SLE66CMisc></SLE66CMisc>
           <SLE66AMisc></SLE66AMisc>
           <SLE66LinkerMisc></SLE66LinkerMisc>
-          <SFDFile>..\..\..\..\..\..\SVD\nrf52.xml</SFDFile>
+          <SFDFile>..\..\..\..\..\..\modules\nrfx\mdk\nrf52.svd</SFDFile>
           <bCustSvd>0</bCustSvd>
           <UseEnv>0</UseEnv>
           <BinPath></BinPath>
@@ -349,10 +349,10 @@
             <uThumb>0</uThumb>
             <uSurpInc>0</uSurpInc>
             <VariousControls>
-              <MiscControls>--c99</MiscControls>
-              <Define> NRF52832 NRF52 BOARD_PCA10040 NRF52_PAN_12 NRF52_PAN_15 NRF52_PAN_20 NRF52_PAN_31 NRF52_PAN_36 NRF52_PAN_51 CONFIG_GPIO_AS_PINRESET NRF52_PAN_54 NRF52_PAN_55 NRF52_PAN_58 NRF52_PAN_64 BSP_DEFINES_ONLY</Define>
+              <MiscControls>--c99 --reduce_paths</MiscControls>
+              <Define> BOARD_PCA10040 BSP_DEFINES_ONLY CONFIG_GPIO_AS_PINRESET FLOAT_ABI_HARD NRF52 NRF52832_XXAA NRF52_PAN_74 __HEAP_SIZE=8192 __STACK_SIZE=8192</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\..\config\uicr_config_pca10040;..\..\..\config;..\..\..\..\..\..\components;..\..\..\..\..\..\components\boards;..\..\..\..\..\..\components\device;..\..\..\..\..\..\components\drivers_nrf\hal;..\..\..\..\..\..\components\drivers_nrf\nrf_soc_nosd;..\..\..\..\..\..\components\libraries\bsp;..\..\..\..\..\..\components\libraries\log;..\..\..\..\..\..\components\libraries\log\src;..\..\..\..\..\..\components\libraries\util;..\..\..\..\..\..\components\toolchain;..\..\..;..\config</IncludePath>
+              <IncludePath>..\..\..\config;..\..\..\..\..\..\components;..\..\..\..\..\..\components\boards;..\..\..\..\..\..\components\drivers_nrf\nrf_soc_nosd;..\..\..\..\..\..\components\libraries\balloc;..\..\..\..\..\..\components\libraries\bsp;..\..\..\..\..\..\components\libraries\experimental_log;..\..\..\..\..\..\components\libraries\experimental_log\src;..\..\..\..\..\..\components\libraries\experimental_memobj;..\..\..\..\..\..\components\libraries\experimental_section_vars;..\..\..\..\..\..\components\libraries\strerror;..\..\..\..\..\..\components\libraries\util;..\..\..;..\..\..\..\..\..\integration\nrfx;..\..\..\..\..\..\modules\nrfx;..\..\..\..\..\..\modules\nrfx\hal;..\..\..\..\..\..\modules\nrfx\mdk;..\config</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -365,10 +365,10 @@
             <NoWarn>0</NoWarn>
             <uSurpInc>0</uSurpInc>
             <VariousControls>
-              <MiscControls> --cpreproc_opts=-DNRF52832,-DNRF52,-DBOARD_PCA10040,-DNRF52_PAN_12,-DNRF52_PAN_15,-DNRF52_PAN_20,-DNRF52_PAN_31,-DNRF52_PAN_36,-DNRF52_PAN_51,-DCONFIG_GPIO_AS_PINRESET,-DNRF52_PAN_54,-DNRF52_PAN_55,-DNRF52_PAN_58,-DNRF52_PAN_64,-DBSP_DEFINES_ONLY</MiscControls>
-              <Define> NRF52832 NRF52 BOARD_PCA10040 NRF52_PAN_12 NRF52_PAN_15 NRF52_PAN_20 NRF52_PAN_31 NRF52_PAN_36 NRF52_PAN_51 CONFIG_GPIO_AS_PINRESET NRF52_PAN_54 NRF52_PAN_55 NRF52_PAN_58 NRF52_PAN_64 BSP_DEFINES_ONLY</Define>
+              <MiscControls> --cpreproc_opts=-DBOARD_PCA10040,-DBSP_DEFINES_ONLY,-DCONFIG_GPIO_AS_PINRESET,-DFLOAT_ABI_HARD,-DNRF52,-DNRF52832_XXAA,-DNRF52_PAN_74,-D__HEAP_SIZE=8192,-D__STACK_SIZE=8192</MiscControls>
+              <Define> BOARD_PCA10040 BSP_DEFINES_ONLY CONFIG_GPIO_AS_PINRESET FLOAT_ABI_HARD NRF52 NRF52832_XXAA NRF52_PAN_74 __HEAP_SIZE=8192 __STACK_SIZE=8192</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\..\config\uicr_config_pca10040;..\..\..\config;..\..\..\..\..\..\components;..\..\..\..\..\..\components\boards;..\..\..\..\..\..\components\device;..\..\..\..\..\..\components\drivers_nrf\hal;..\..\..\..\..\..\components\drivers_nrf\nrf_soc_nosd;..\..\..\..\..\..\components\libraries\bsp;..\..\..\..\..\..\components\libraries\log;..\..\..\..\..\..\components\libraries\log\src;..\..\..\..\..\..\components\libraries\util;..\..\..\..\..\..\components\toolchain;..\..\..;..\config</IncludePath>
+              <IncludePath>..\..\..\config;..\..\..\..\..\..\components;..\..\..\..\..\..\components\boards;..\..\..\..\..\..\components\drivers_nrf\nrf_soc_nosd;..\..\..\..\..\..\components\libraries\balloc;..\..\..\..\..\..\components\libraries\bsp;..\..\..\..\..\..\components\libraries\experimental_log;..\..\..\..\..\..\components\libraries\experimental_log\src;..\..\..\..\..\..\components\libraries\experimental_memobj;..\..\..\..\..\..\components\libraries\experimental_section_vars;..\..\..\..\..\..\components\libraries\strerror;..\..\..\..\..\..\components\libraries\util;..\..\..;..\..\..\..\..\..\integration\nrfx;..\..\..\..\..\..\modules\nrfx;..\..\..\..\..\..\modules\nrfx\hal;..\..\..\..\..\..\modules\nrfx\mdk;..\config</IncludePath>
             </VariousControls>
           </Aads>
           <LDads>
@@ -383,13 +383,22 @@
             <ScatterFile></ScatterFile>
             <IncludeLibs></IncludeLibs>
             <IncludeLibsPath></IncludeLibsPath>
-            <Misc></Misc>
+            <Misc>--diag_suppress 6330</Misc>
             <LinkerInputFile></LinkerInputFile>
             <DisabledWarnings></DisabledWarnings>
           </LDads>
         </TargetArmAds>
       </TargetOption>
       <Groups>        <Group>
+          <GroupName>None</GroupName>
+          <Files>            <File>
+              <FileName>arm_startup_nrf52.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>..\..\..\..\..\..\modules\nrfx\mdk\arm_startup_nrf52.s</FilePath>            </File>            <File>
+              <FileName>system_nrf52.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\modules\nrfx\mdk\system_nrf52.c</FilePath>            </File>          </Files>
+        </Group>        <Group>
           <GroupName>Application</GroupName>
           <Files>            <File>
               <FileName>main.c</FileName>
@@ -405,23 +414,26 @@
               <FileType>1</FileType>
               <FilePath>..\..\..\..\..\..\components\boards\boards.c</FilePath>            </File>          </Files>
         </Group>        <Group>
-          <GroupName>Device</GroupName>
-          <Files>            <File>
-              <FileName>arm_startup_nrf52.s</FileName>
-              <FileType>2</FileType>
-              <FilePath>..\..\..\..\..\..\components\toolchain\arm\arm_startup_nrf52.s</FilePath>            </File>            <File>
-              <FileName>system_nrf52.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\..\..\..\components\toolchain\system_nrf52.c</FilePath>            </File>          </Files>
-        </Group>        <Group>
           <GroupName>nRF_Libraries</GroupName>
           <Files>            <File>
               <FileName>app_error.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\..\..\..\components\libraries\util\app_error.c</FilePath>            </File>            <File>
+              <FileName>app_error_handler_keil.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\components\libraries\util\app_error_handler_keil.c</FilePath>            </File>            <File>
               <FileName>app_error_weak.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\..\..\..\..\components\libraries\util\app_error_weak.c</FilePath>            </File>          </Files>
+              <FilePath>..\..\..\..\..\..\components\libraries\util\app_error_weak.c</FilePath>            </File>            <File>
+              <FileName>app_util_platform.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\components\libraries\util\app_util_platform.c</FilePath>            </File>            <File>
+              <FileName>nrf_assert.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\components\libraries\util\nrf_assert.c</FilePath>            </File>            <File>
+              <FileName>nrf_strerror.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\components\libraries\strerror\nrf_strerror.c</FilePath>            </File>          </Files>
         </Group>      </Groups>
     </Target>  </Targets>
 

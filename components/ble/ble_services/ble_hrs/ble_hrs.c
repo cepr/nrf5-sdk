@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2012 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,32 +37,29 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /* Attention!
-*  To maintain compliance with Nordic Semiconductor ASA’s Bluetooth profile
-*  qualification listings, this section of source code must not be modified.
-*/
+ * To maintain compliance with Nordic Semiconductor ASA's Bluetooth profile
+ * qualification listings, this section of source code must not be modified.
+ */
 #include "sdk_common.h"
 #if NRF_MODULE_ENABLED(BLE_HRS)
 #include "ble_hrs.h"
 #include <string.h>
-#include "ble_l2cap.h"
 #include "ble_srv_common.h"
 
 
 #define OPCODE_LENGTH 1                                                              /**< Length of opcode inside Heart Rate Measurement packet. */
 #define HANDLE_LENGTH 2                                                              /**< Length of handle inside Heart Rate Measurement packet. */
-#define INIT_MAX_HRM_LEN (GATT_MTU_SIZE_DEFAULT - OPCODE_LENGTH - HANDLE_LENGTH)     /**< Maximum size of a transmitted Heart Rate Measurement. */
-#define MAX_HRM_LEN      (NRF_BLE_GATT_MAX_MTU_SIZE - OPCODE_LENGTH - HANDLE_LENGTH) /**< Maximum size of a transmitted Heart Rate Measurement. */
+#define MAX_HRM_LEN      (NRF_SDH_BLE_GATT_MAX_MTU_SIZE - OPCODE_LENGTH - HANDLE_LENGTH) /**< Maximum size of a transmitted Heart Rate Measurement. */
 
 #define INITIAL_VALUE_HRM                       0                                    /**< Initial Heart Rate Measurement value. */
 
 // Heart Rate Measurement flag bits
-#define HRM_FLAG_MASK_HR_VALUE_16BIT           (0x01 << 0)                           /**< Heart Rate Value Format bit. */
-#define HRM_FLAG_MASK_SENSOR_CONTACT_DETECTED  (0x01 << 1)                           /**< Sensor Contact Detected bit. */
-#define HRM_FLAG_MASK_SENSOR_CONTACT_SUPPORTED (0x01 << 2)                           /**< Sensor Contact Supported bit. */
-#define HRM_FLAG_MASK_EXPENDED_ENERGY_INCLUDED (0x01 << 3)                           /**< Energy Expended Status bit. Feature Not Supported */
-#define HRM_FLAG_MASK_RR_INTERVAL_INCLUDED     (0x01 << 4)                           /**< RR-Interval bit. */
+#define HRM_FLAG_MASK_HR_VALUE_16BIT            (0x01 << 0)                           /**< Heart Rate Value Format bit. */
+#define HRM_FLAG_MASK_SENSOR_CONTACT_DETECTED   (0x01 << 1)                           /**< Sensor Contact Detected bit. */
+#define HRM_FLAG_MASK_SENSOR_CONTACT_SUPPORTED  (0x01 << 2)                           /**< Sensor Contact Supported bit. */
+#define HRM_FLAG_MASK_EXPENDED_ENERGY_INCLUDED  (0x01 << 3)                           /**< Energy Expended Status bit. Feature Not Supported */
+#define HRM_FLAG_MASK_RR_INTERVAL_INCLUDED      (0x01 << 4)                           /**< RR-Interval bit. */
 
 
 /**@brief Function for handling the Connect event.
@@ -70,7 +67,7 @@
  * @param[in]   p_hrs       Heart Rate Service structure.
  * @param[in]   p_ble_evt   Event received from the BLE stack.
  */
-static void on_connect(ble_hrs_t * p_hrs, ble_evt_t * p_ble_evt)
+static void on_connect(ble_hrs_t * p_hrs, ble_evt_t const * p_ble_evt)
 {
     p_hrs->conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
 }
@@ -81,7 +78,7 @@ static void on_connect(ble_hrs_t * p_hrs, ble_evt_t * p_ble_evt)
  * @param[in]   p_hrs       Heart Rate Service structure.
  * @param[in]   p_ble_evt   Event received from the BLE stack.
  */
-static void on_disconnect(ble_hrs_t * p_hrs, ble_evt_t * p_ble_evt)
+static void on_disconnect(ble_hrs_t * p_hrs, ble_evt_t const * p_ble_evt)
 {
     UNUSED_PARAMETER(p_ble_evt);
     p_hrs->conn_handle = BLE_CONN_HANDLE_INVALID;
@@ -93,7 +90,7 @@ static void on_disconnect(ble_hrs_t * p_hrs, ble_evt_t * p_ble_evt)
  * @param[in]   p_hrs         Heart Rate Service structure.
  * @param[in]   p_evt_write   Write event received from the BLE stack.
  */
-static void on_hrm_cccd_write(ble_hrs_t * p_hrs, ble_gatts_evt_write_t * p_evt_write)
+static void on_hrm_cccd_write(ble_hrs_t * p_hrs, ble_gatts_evt_write_t const * p_evt_write)
 {
     if (p_evt_write->len == 2)
     {
@@ -122,9 +119,9 @@ static void on_hrm_cccd_write(ble_hrs_t * p_hrs, ble_gatts_evt_write_t * p_evt_w
  * @param[in]   p_hrs       Heart Rate Service structure.
  * @param[in]   p_ble_evt   Event received from the BLE stack.
  */
-static void on_write(ble_hrs_t * p_hrs, ble_evt_t * p_ble_evt)
+static void on_write(ble_hrs_t * p_hrs, ble_evt_t const * p_ble_evt)
 {
-    ble_gatts_evt_write_t * p_evt_write = &p_ble_evt->evt.gatts_evt.params.write;
+    ble_gatts_evt_write_t const * p_evt_write = &p_ble_evt->evt.gatts_evt.params.write;
 
     if (p_evt_write->handle == p_hrs->hrm_handles.cccd_handle)
     {
@@ -133,8 +130,10 @@ static void on_write(ble_hrs_t * p_hrs, ble_evt_t * p_ble_evt)
 }
 
 
-void ble_hrs_on_ble_evt(ble_hrs_t * p_hrs, ble_evt_t * p_ble_evt)
+void ble_hrs_on_ble_evt(ble_evt_t const * p_ble_evt, void * p_context)
 {
+    ble_hrs_t * p_hrs = (ble_hrs_t *) p_context;
+
     switch (p_ble_evt->header.evt_id)
     {
         case BLE_GAP_EVT_CONNECTED:
@@ -338,7 +337,7 @@ uint32_t ble_hrs_init(ble_hrs_t * p_hrs, const ble_hrs_init_t * p_hrs_init)
     p_hrs->conn_handle                 = BLE_CONN_HANDLE_INVALID;
     p_hrs->is_sensor_contact_detected  = false;
     p_hrs->rr_interval_count           = 0;
-    p_hrs->max_hrm_len                 = INIT_MAX_HRM_LEN;
+    p_hrs->max_hrm_len                 = MAX_HRM_LEN;
 
     // Add service
     BLE_UUID_BLE_ASSIGN(ble_uuid, BLE_UUID_HEART_RATE_SERVICE);
@@ -469,11 +468,12 @@ uint32_t ble_hrs_body_sensor_location_set(ble_hrs_t * p_hrs, uint8_t body_sensor
 }
 
 
-void ble_hrs_on_gatt_evt(ble_hrs_t * p_hrs, nrf_ble_gatt_evt_t * p_gatt_evt)
+void ble_hrs_on_gatt_evt(ble_hrs_t * p_hrs, nrf_ble_gatt_evt_t const * p_gatt_evt)
 {
-    if (p_hrs->conn_handle == p_gatt_evt->conn_handle)
+    if (    (p_hrs->conn_handle == p_gatt_evt->conn_handle)
+        &&  (p_gatt_evt->evt_id == NRF_BLE_GATT_EVT_ATT_MTU_UPDATED))
     {
-        p_hrs->max_hrm_len = p_gatt_evt->att_mtu_effective - OPCODE_LENGTH - HANDLE_LENGTH;
+        p_hrs->max_hrm_len = p_gatt_evt->params.att_mtu_effective - OPCODE_LENGTH - HANDLE_LENGTH;
     }
 }
 #endif // NRF_MODULE_ENABLED(BLE_HRS)

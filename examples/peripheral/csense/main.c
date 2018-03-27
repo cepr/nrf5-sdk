@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  * @defgroup capacitive_sensor_example_main main.c
  * @{
@@ -57,16 +56,13 @@
 #include "app_timer.h"
 
 #include "nrf_delay.h"
-#define NRF_LOG_MODULE_NAME "APP"
+
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 
-/* Time in RTC ticks between RTC interrupts. */
-#define APP_TIMER_TICKS_TIMEOUT 2050
-
-/* Timer initalization parameters. */
-#define OP_QUEUES_SIZE          4
-#define APP_TIMER_PRESCALER     0
+/* Time between RTC interrupts. */
+#define APP_TIMER_TICKS_TIMEOUT APP_TIMER_TICKS(50)
 
 /* Scale range. */
 #define RANGE                   50
@@ -91,19 +87,19 @@
 #endif
 
 /* Threshold values for pads and button. */
-#define THRESHOLD_PAD_1         1000
-#define THRESHOLD_PAD_2         1000
-#define THRESHOLD_PAD_3         1000
-#define THRESHOLD_PAD_4         1000
-#define THRESHOLD_BUTTON        1200
+#define THRESHOLD_PAD_1         400
+#define THRESHOLD_PAD_2         400
+#define THRESHOLD_PAD_3         400
+#define THRESHOLD_PAD_4         400
+#define THRESHOLD_BUTTON        400
 
 /*lint -e19 -save */
 NRF_CSENSE_BUTTON_DEF(m_button, (BUTTON, THRESHOLD_BUTTON));
 NRF_CSENSE_SLIDER_4_DEF(m_slider,
-                        RANGE, 
-                        (PAD1, THRESHOLD_PAD_1), 
+                        RANGE,
+                        (PAD1, THRESHOLD_PAD_1),
                         (PAD2, THRESHOLD_PAD_2),
-                        (PAD3, THRESHOLD_PAD_3), 
+                        (PAD3, THRESHOLD_PAD_3),
                         (PAD4, THRESHOLD_PAD_4));
 /*lint -restore*/
 
@@ -140,7 +136,7 @@ static void slider_handler(uint16_t step)
     static uint16_t slider_val;
     if (slider_val != step)
     {
-        NRF_LOG_INFO("Slider value: %03d.\r\n", step);
+        NRF_LOG_INFO("Slider value: %03d.", step);
         slider_val = step;
     }
 }
@@ -161,7 +157,7 @@ void nrf_csense_handler(nrf_csense_evt_t * p_evt)
             {
                 uint16_t * btn_cnt = ((uint16_t *)p_evt->p_instance->p_context);
                 (*btn_cnt)++;
-                NRF_LOG_INFO("Button touched %03d times.\r\n", (*btn_cnt));
+                NRF_LOG_INFO("Button touched %03d times.", (*btn_cnt));
             }
             break;
         case NRF_CSENSE_SLIDER_EVT_PRESSED:
@@ -176,7 +172,7 @@ void nrf_csense_handler(nrf_csense_evt_t * p_evt)
             }
             break;
         default:
-            NRF_LOG_WARNING("Unknown event.\r\n");
+            NRF_LOG_WARNING("Unknown event.");
             break;
     }
 }
@@ -215,12 +211,15 @@ int main(void)
     err_code = NRF_LOG_INIT(NULL);
     APP_ERROR_CHECK(err_code);
 
-    NRF_LOG_INFO("Capacitive sensing library example.\r\n");
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
 
-    APP_TIMER_INIT(APP_TIMER_PRESCALER, OP_QUEUES_SIZE, NULL);
+    err_code = app_timer_init();
+    APP_ERROR_CHECK(err_code);
 
     err_code = clock_config();
     APP_ERROR_CHECK(err_code);
+
+    NRF_LOG_INFO("Capacitive sensing library example started.");
 
     csense_start();
 

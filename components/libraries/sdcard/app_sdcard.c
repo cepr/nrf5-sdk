@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
- 
 #include "sdk_config.h"
 #if APP_SDCARD_ENABLED
 
@@ -69,8 +68,8 @@
 #define CMD55   (CMD_MASK | 55)                 /**< SDC/MMC command 55: APP_CMD. */
 #define CMD58   (CMD_MASK | 58)                 /**< SDC/MMC command 58: READ_OCR. */
 #define ACMD13  (ACMD_MASK | CMD_MASK | 13)     /**< SDC application command 13: SD_STATUS. */
-#define	ACMD23  (ACMD_MASK | CMD_MASK | 23)     /**< SDC application command 23: SET_WR_BLK_ERASE_COUNT. */
-#define	ACMD41  (ACMD_MASK | CMD_MASK | 41)     /**< SDC application command 41: SEND_OP_COND. */
+#define ACMD23  (ACMD_MASK | CMD_MASK | 23)     /**< SDC application command 23: SET_WR_BLK_ERASE_COUNT. */
+#define ACMD41  (ACMD_MASK | CMD_MASK | 41)     /**< SDC application command 41: SEND_OP_COND. */
 
 #define IS_ACMD(CMD) ((CMD) & ACMD_MASK)        /**< Check if command is an application command (ACMD). */
 
@@ -127,7 +126,7 @@
 #define SDC_BREAK(PT, EXIT_CODE) do {                            \
                                      *p_exit_code = (EXIT_CODE); \
                                      PT_EXIT(PT);                \
-                                 } while(0)
+                                 } while (0)
 
 /**< Check the value of R1 response and break current task on error. */
 #define SDC_RESP_CHECK(PT, R1) do {                                                             \
@@ -135,7 +134,7 @@
                                    {                                                            \
                                        SDC_BREAK((PT), SDC_ERROR_COMMUNICATION);                \
                                    }                                                            \
-                               } while(0)
+                               } while (0)
 
 /**< Check the result of an SDC operation and break on failure. */
 #define SDC_RESULT_CHECK(PT, RESULT) do {                             \
@@ -143,7 +142,7 @@
                                          {                            \
                                              SDC_BREAK((PT), RESULT); \
                                          }                            \
-                                     } while(0);
+                                     } while (0);
 
 
 static const nrf_drv_spi_t m_spi = NRF_DRV_SPI_INSTANCE(APP_SDCARD_SPI_INSTANCE);  /**< SPI instance. */
@@ -247,8 +246,13 @@ __STATIC_INLINE void sdc_spi_transfer(uint8_t const * const p_txb,
  */
 __STATIC_INLINE void sdc_spi_hispeed(void)
 {
-    nrf_spi_frequency_set((NRF_SPI_Type *)m_spi.p_registers,
+#ifdef SPI_PRESENT
+    nrf_spi_frequency_set(m_spi.u.spi.p_reg,
                           (nrf_spi_frequency_t) APP_SDCARD_FREQ_DATA);
+#else
+    nrf_spim_frequency_set(m_spi.u.spim.p_reg,
+                           (nrf_spi_frequency_t) APP_SDCARD_FREQ_DATA);
+#endif
 }
 
 
@@ -264,7 +268,7 @@ static uint32_t sdc_calculate_size(uint8_t const * const p_csd)
     // Values are calculated as stated in SD Specifications, chapter 5.3.
     uint8_t csd_version = p_csd[0] >> 6;
 
-    switch(csd_version)
+    switch (csd_version)
     {
         case 0:
         case 2:
@@ -274,7 +278,7 @@ static uint32_t sdc_calculate_size(uint8_t const * const p_csd)
                               + ((uint32_t)(p_csd[6] & 0x03) << 10);
             uint32_t read_bl_len = p_csd[5] & 0x0F;
             uint32_t c_size_mult = ((p_csd[10] & 0x80) >> 7) + ((p_csd[9] & 0x03) << 1);
-            
+
             // Block size in this implementation is set to 512, so the resulting number of bytes
             // is divided by 512 (2^9)
             return (c_size + 1) << (read_bl_len + c_size_mult + 2 - 9);
@@ -414,7 +418,7 @@ static PT_THREAD(sdc_pt_sub_data_read(uint8_t * p_rx_data,
                 }
 
                 // Search for the first token.
-                while(rx_length && p_rx_data[0] ==  SDC_EMPTY_BYTE)
+                while (rx_length && p_rx_data[0] ==  SDC_EMPTY_BYTE)
                 {
                     ++p_rx_data;
                     --rx_length;
@@ -475,7 +479,7 @@ static PT_THREAD(sdc_pt_sub_data_read(uint8_t * p_rx_data,
                  m_cb.rsp_buf, 2);
             PT_YIELD(SDC_PT_SUB);
 
-            
+
 
             // Set rx length to 0 to force "busy check" transmission before next data block.
             rx_length = 0;
@@ -550,7 +554,7 @@ static PT_THREAD(sdc_pt_identification(uint8_t * p_rx_data,
             // ACMD41 was rejected - MMC card.
             m_cb.info.type.version = SDC_TYPE_MMCV3;
             r1 &= ~SDC_FLAG_ILLEGAL_COMMAND;
-            
+
             do
             {
                 ++m_cb.state.retry_count;
@@ -570,7 +574,7 @@ static PT_THREAD(sdc_pt_identification(uint8_t * p_rx_data,
         {
             // SDv1 or SDv2 card. Send CMD58 or retry ACMD41 if not ready.
             SDC_RESP_CHECK(SDC_PT, r1);
-            
+
             while (r1 & SDC_FLAG_IN_IDLE_STATE)
             {
                 ++m_cb.state.retry_count;
@@ -578,14 +582,14 @@ static PT_THREAD(sdc_pt_identification(uint8_t * p_rx_data,
                 {
                     SDC_BREAK(SDC_PT, SDC_ERROR_TIMEOUT);
                 }
-                
+
                 arg = (m_cb.info.type.version == SDC_TYPE_SDV2) ? SDC_HCS_FLAG_MASK : 0;
                 err_code = sdc_cmd(ACMD41, arg, SDC_R3);
                 APP_ERROR_CHECK(err_code);
                 PT_YIELD(SDC_PT);
                 SDC_RESP_CHECK(SDC_PT, r1);
             }
-            
+
             err_code = sdc_cmd(CMD58, 0, SDC_R3);
             APP_ERROR_CHECK(err_code);
             PT_YIELD(SDC_PT);
@@ -772,7 +776,7 @@ static PT_THREAD(sdc_pt_write(uint8_t * rx_data,
                 sdc_spi_transfer(m_cb.cmd_buf, 1,
                                  m_cb.rsp_buf, SDC_DATA_WAIT_TX_SIZE);
                 PT_YIELD(SDC_PT);
-                
+
                 for (uint32_t i = 0; i < rx_length; ++i)
                 {
                     if (rx_data[i] != 0x00)
@@ -780,7 +784,7 @@ static PT_THREAD(sdc_pt_write(uint8_t * rx_data,
                         m_cb.state.bus_state = SDC_BUS_IDLE;
                         break;
                     }
-                }    
+                }
             }
 
             --m_cb.state.rw_op.blocks_left;
@@ -794,7 +798,7 @@ static PT_THREAD(sdc_pt_write(uint8_t * rx_data,
             sdc_spi_transfer(m_cb.cmd_buf, 2,
                              m_cb.rsp_buf, 3);
             PT_YIELD(SDC_PT);
-        
+
             m_cb.state.retry_count = 0;
             m_cb.state.bus_state = SDC_BUS_DATA_WAIT;
 
@@ -810,7 +814,7 @@ static PT_THREAD(sdc_pt_write(uint8_t * rx_data,
                 sdc_spi_transfer(m_cb.cmd_buf, 1,
                                  m_cb.rsp_buf, SDC_DATA_WAIT_TX_SIZE);
                 PT_YIELD(SDC_PT);
-                
+
                 for (uint32_t i = 0; i < rx_length; ++i)
                 {
                     if (rx_data[i] != 0x00)
@@ -818,7 +822,7 @@ static PT_THREAD(sdc_pt_write(uint8_t * rx_data,
                         m_cb.state.bus_state = SDC_BUS_IDLE;
                         break;
                     }
-                }    
+                }
             }
         }
 
@@ -833,7 +837,8 @@ static PT_THREAD(sdc_pt_write(uint8_t * rx_data,
  *
  * @param[in] p_event       Pointer to the SPI event structure.
  */
-static void spi_handler(nrf_drv_spi_evt_t const * p_event)
+static void spi_handler(nrf_drv_spi_evt_t const * p_event,
+                        void *                    p_context)
 {
     uint8_t * rx_data = p_event->data.done.p_rx_buffer;
     uint8_t rx_length = p_event->data.done.rx_length;
@@ -885,7 +890,7 @@ static void spi_handler(nrf_drv_spi_evt_t const * p_event)
             // Command response missing.
             sdc_evt_t evt;
             evt.result = SDC_ERROR_NOT_RESPONDING;
-            switch(m_cb.state.op)
+            switch (m_cb.state.op)
             {
                 case SDC_OP_RESET:
                 case SDC_OP_IDENTIFICATION:
@@ -927,7 +932,7 @@ static void spi_handler(nrf_drv_spi_evt_t const * p_event)
 
     sdc_result_t exit_code = SDC_ERROR_INTERNAL;
     sdc_evt_t evt;
-    switch(m_cb.state.op)
+    switch (m_cb.state.op)
     {
         case SDC_OP_RESET:
             m_cb.state.op = SDC_OP_IDENTIFICATION;
@@ -1055,7 +1060,7 @@ ret_code_t app_sdc_block_write(uint8_t const * p_buf, uint32_t block_address, ui
     m_cb.state.rw_op.blocks_left = block_count;
 
     PT_INIT(&m_cb.state.pt);
-    
+
     ret_code_t err_code;
     if (block_count == 1)
     {
@@ -1116,8 +1121,7 @@ ret_code_t app_sdc_init(app_sdc_config_t const * const p_config, sdc_event_handl
                             .mode         = NRF_DRV_SPI_MODE_0,
                             .bit_order    = NRF_DRV_SPI_BIT_ORDER_MSB_FIRST,
                         };
-
-    err_code = nrf_drv_spi_init(&m_spi, &spi_cfg, spi_handler);
+    err_code = nrf_drv_spi_init(&m_spi, &spi_cfg, spi_handler, NULL);
     APP_ERROR_CHECK(err_code);
 
     m_cb.handler            = event_handler;

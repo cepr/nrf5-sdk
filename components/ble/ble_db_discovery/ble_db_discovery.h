@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2013 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2013 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,8 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
-
 /**@file
  *
  * @defgroup ble_db_discovery Database Discovery
@@ -71,31 +69,53 @@
 #define BLE_DB_DISCOVERY_H__
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "nrf_error.h"
 #include "ble.h"
 #include "ble_gattc.h"
-#include "ble_srv_common.h"
 #include "ble_gatt_db.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
-#define BLE_DB_DISCOVERY_MAX_SRV          6  /**< Maximum number of services supported by this module. This also indicates the maximum number of users allowed to be registered to this module. (one user per service). */
-
-
-/**@brief   Type of the DB Discovery event.
+/**@brief   Macro for defining a ble_db_discovery instance.
+ *
+ * @param   _name   Name of the instance.
+ * @hideinitializer
  */
+#define BLE_DB_DISCOVERY_DEF(_name)                                                                 \
+static ble_db_discovery_t _name = {.discovery_in_progress = 0,                                      \
+                                   .discovery_pending = 0,                                          \
+                                   .conn_handle = BLE_CONN_HANDLE_INVALID};                         \
+NRF_SDH_BLE_OBSERVER(_name ## _obs,                                                                 \
+                     BLE_DB_DISC_BLE_OBSERVER_PRIO,                                                 \
+                     ble_db_discovery_on_ble_evt, &_name)
+
+/** @brief Macro for defining multiple ble_db_discovery instances.
+ *
+ * @param   _name   Name of the array of instances.
+ * @param   _cnt    Number of instances to define.
+ */
+#define BLE_DB_DISCOVERY_ARRAY_DEF(_name, _cnt)                                                     \
+static ble_db_discovery_t _name[_cnt] = {{.discovery_in_progress = 0,                               \
+                                          .discovery_pending = 0,                                   \
+                                          .conn_handle = BLE_CONN_HANDLE_INVALID}};                 \
+NRF_SDH_BLE_OBSERVERS(_name ## _obs,                                                                \
+                      BLE_DB_DISC_BLE_OBSERVER_PRIO,                                                \
+                      ble_db_discovery_on_ble_evt, &_name, _cnt)
+
+#define BLE_DB_DISCOVERY_MAX_SRV        6   /**< Maximum number of services supported by this module. This also indicates the maximum number of users allowed to be registered to this module (one user per service). */
+
+
+/**@brief   DB Discovery event type. */
 typedef enum
 {
-    BLE_DB_DISCOVERY_COMPLETE,      /**< Event indicating that the GATT Database discovery is complete. */
+    BLE_DB_DISCOVERY_COMPLETE,      /**< Event indicating that the discovery of one service is complete. */
     BLE_DB_DISCOVERY_ERROR,         /**< Event indicating that an internal error has occurred in the DB Discovery module. This could typically be because of the SoftDevice API returning an error code during the DB discover.*/
     BLE_DB_DISCOVERY_SRV_NOT_FOUND, /**< Event indicating that the service was not found at the peer.*/
-    BLE_DB_DISCOVERY_AVAILABLE      /**< Event indicating that the DB discovery module is available.*/
+    BLE_DB_DISCOVERY_AVAILABLE      /**< Event indicating that the DB discovery instance is available.*/
 } ble_db_discovery_evt_type_t;
-
-
 
 /**@brief   Structure for holding the information related to the GATT database at the server.
  *
@@ -111,24 +131,22 @@ typedef struct
     uint8_t             curr_char_ind;                       /**< Index of the current characteristic being discovered. This is intended for internal use during service discovery.*/
     uint8_t             curr_srv_ind;                        /**< Index of the current service being discovered. This is intended for internal use during service discovery.*/
     bool                discovery_in_progress;               /**< Variable to indicate if there is a service discovery in progress. */
+    bool                discovery_pending;                   /**< Discovery was requested, but could not start because the SoftDevice was busy. */
     uint8_t             discoveries_count;                   /**< Number of service discoveries made, both successful and unsuccessful. */
     uint16_t            conn_handle;                         /**< Connection handle on which the discovery is started*/
 } ble_db_discovery_t;
 
-
-/**@brief   Structure containing the event from the DB discovery module to the application.
- */
+/**@brief   Structure containing the event from the DB discovery module to the application. */
 typedef struct
 {
     ble_db_discovery_evt_type_t evt_type;     /**< Type of event. */
     uint16_t                    conn_handle;  /**< Handle of the connection for which this event has occurred. */
     union
     {
-        ble_gatt_db_srv_t discovered_db;  /**< Structure containing the information about the GATT Database at the server. This will be filled when the event type is @ref BLE_DB_DISCOVERY_COMPLETE.*/
-        uint32_t               err_code;       /**< nRF Error code indicating the type of error which occurred in the DB Discovery module. This will be filled when the event type is @ref BLE_DB_DISCOVERY_ERROR. */
+        ble_gatt_db_srv_t discovered_db;  /**< Structure containing the information about the GATT Database at the server. This will be filled when the event type is @ref BLE_DB_DISCOVERY_COMPLETE. The UUID field of this will be filled when the event type is @ref BLE_DB_DISCOVERY_SRV_NOT_FOUND. */
+        uint32_t          err_code;       /**< nRF Error code indicating the type of error which occurred in the DB Discovery module. This will be filled when the event type is @ref BLE_DB_DISCOVERY_ERROR. */
     } params;
 } ble_db_discovery_evt_t;
-
 
 /**@brief   DB Discovery event handler type. */
 typedef void (* ble_db_discovery_evt_handler_t)(ble_db_discovery_evt_t * p_evt);
@@ -174,12 +192,10 @@ uint32_t ble_db_discovery_close(void);
  * @retval    NRF_ERROR_NO_MEM          The maximum number of registrations allowed by this module
  *                                      has been reached.
  */
-uint32_t ble_db_discovery_evt_register(const ble_uuid_t * const             p_uuid);
+uint32_t ble_db_discovery_evt_register(const ble_uuid_t * const p_uuid);
 
 
 /**@brief Function for starting the discovery of the GATT database at the server.
- *
- * @warning p_db_discovery structure must be zero-initialized.
  *
  * @param[out] p_db_discovery    Pointer to the DB Discovery structure.
  * @param[in]  conn_handle       The handle of the connection for which the discovery should be
@@ -190,23 +206,24 @@ uint32_t ble_db_discovery_evt_register(const ble_uuid_t * const             p_uu
  * @retval    NRF_ERROR_INVALID_STATE   If this function is called without calling the
  *                                      @ref ble_db_discovery_init, or without calling
  *                                      @ref ble_db_discovery_evt_register.
- * @retval    NRF_ERROR_BUSY            If a discovery is already in progress for the current
- *                                      connection.
+ * @retval    NRF_ERROR_BUSY            If a discovery is already in progress using
+ *                                      @p p_db_discovery. Use a different @ref ble_db_discovery_t
+ *                                      structure, or wait for a DB Discovery event before retrying.
  *
  * @return                              This API propagates the error code returned by the
  *                                      SoftDevice API @ref sd_ble_gattc_primary_services_discover.
  */
-uint32_t ble_db_discovery_start(ble_db_discovery_t * const p_db_discovery,
-                                uint16_t                   conn_handle);
+uint32_t ble_db_discovery_start(ble_db_discovery_t * p_db_discovery,
+                                uint16_t             conn_handle);
 
 
 /**@brief Function for handling the Application's BLE Stack events.
  *
- * @param[in,out] p_db_discovery Pointer to the DB Discovery structure.
- * @param[in]     p_ble_evt      Pointer to the BLE event received.
+ * @param[in]     p_ble_evt     Pointer to the BLE event received.
+ * @param[in,out] p_context     Pointer to the DB Discovery structure.
  */
-void ble_db_discovery_on_ble_evt(ble_db_discovery_t * const p_db_discovery,
-                                 const ble_evt_t * const    p_ble_evt);
+void ble_db_discovery_on_ble_evt(ble_evt_t const * p_ble_evt,
+                                 void            * p_context);
 
 
 #ifdef __cplusplus

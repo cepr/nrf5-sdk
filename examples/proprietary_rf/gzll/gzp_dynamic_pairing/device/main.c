@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2012 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,8 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
-
 /**
  * This project requires a running counterpart project, which is either of the following:
  *
@@ -72,9 +70,10 @@
 #include "app_error.h"
 #include "nrf_gzll_error.h"
 
-#define NRF_LOG_MODULE_NAME "APP"
+
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 
 /*****************************************************************************/
 /** @name Configuration */
@@ -112,7 +111,7 @@ static uint8_t input_get(void)
 static void ui_init(void)
 {
     // BSP initialization.
-    uint32_t err_code = bsp_init(BSP_INIT_BUTTONS, NULL, NULL);
+    uint32_t err_code = bsp_init(BSP_INIT_BUTTONS, NULL);
 
     APP_ERROR_CHECK(err_code);
 
@@ -120,8 +119,8 @@ static void ui_init(void)
     err_code = NRF_LOG_INIT(NULL);
     APP_ERROR_CHECK(err_code);
 
-    NRF_LOG_INFO("Gazell dynamic pairing example. Device mode.\r\n");
-    NRF_LOG_FLUSH();
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
+
 }
 
 
@@ -149,8 +148,7 @@ int main(void)
     GAZELLE_ERROR_CODE_CHECK(result_value);
 
     // Attempt sending every packet up to MAX_TX_ATTEMPTS times
-    result_value = nrf_gzll_set_max_tx_attempts(MAX_TX_ATTEMPTS);
-    GAZELLE_ERROR_CODE_CHECK(result_value);
+    nrf_gzll_set_max_tx_attempts(MAX_TX_ATTEMPTS);
 
     result_value = nrf_gzll_set_timeslot_period(NRF_GZLLDE_RXPERIOD_DIV_2); // Half RX period on nRF24Lxx device
     GAZELLE_ERROR_CODE_CHECK(result_value);
@@ -164,6 +162,9 @@ int main(void)
 
     result_value = nrf_gzll_enable();
     GAZELLE_ERROR_CODE_CHECK(result_value);
+
+    NRF_LOG_INFO("Gazell dynamic pairing example started. Device mode.");
+    NRF_LOG_FLUSH();
 
     for (;;)
     {
@@ -193,7 +194,7 @@ int main(void)
             }
             else
             {
-                NRF_LOG_ERROR("TX fifo error \r\n");
+                NRF_LOG_ERROR("TX fifo error ");
                 NRF_LOG_FLUSH();
             }
         }
@@ -202,7 +203,7 @@ int main(void)
         // Check if data transfer failed.
         if (!tx_success)
         {
-            NRF_LOG_ERROR("Gazell: transmission failed\r\n");
+            NRF_LOG_ERROR("Gazelle: transmission failed");
             NRF_LOG_FLUSH();
 
             // Send "system address request". Needed for sending any user data to the host.

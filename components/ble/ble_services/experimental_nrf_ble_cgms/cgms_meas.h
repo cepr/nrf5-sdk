@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  *
  * @defgroup ble_sdk_srv_cgms_meas Continuous Glucose Monitoring Service Measurement
@@ -93,7 +92,7 @@ ret_code_t cgms_meas_send(nrf_ble_cgms_t * p_cgms, ble_cgms_rec_t * p_rec, uint8
  * @param[in] p_cgms      Instance of the CGM Service.
  * @param[in] p_evt_write Event received from the BLE stack.
  */
-void cgms_meas_on_write(nrf_ble_cgms_t * p_cgms, ble_gatts_evt_write_t * p_evt_write);
+void cgms_meas_on_write(nrf_ble_cgms_t * p_cgms, ble_gatts_evt_write_t const * p_evt_write);
 
 #ifdef __cplusplus
 }

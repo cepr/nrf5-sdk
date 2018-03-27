@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,8 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
-
 #ifndef PEER_MANAGER_INTERNAL_H__
 #define PEER_MANAGER_INTERNAL_H__
 
@@ -62,7 +60,7 @@ extern "C" {
  * @{
  */
 
-ANON_UNIONS_ENABLE
+ANON_UNIONS_ENABLE;
 
 /**@brief One piece of data associated with a peer, together with its type.
  *
@@ -105,7 +103,7 @@ typedef struct
     }; /**< @brief The data. */
 } pm_peer_data_const_t;
 
-ANON_UNIONS_DISABLE
+ANON_UNIONS_DISABLE;
 
 
 /**@brief Version of @ref pm_peer_data_t that reflects the structure of peer data in flash.
@@ -113,6 +111,15 @@ ANON_UNIONS_DISABLE
  * @note This type is deprecated.
  */
 typedef pm_peer_data_const_t pm_peer_data_flash_t;
+
+
+/**@brief Event handler for events from the @ref peer_manager module.
+ *
+ * @sa pm_register
+ *
+ * @param[in]  p_event  The event that has occurred.
+ */
+typedef void (*pm_evt_handler_internal_t)(pm_evt_t * p_event);
 
 
 /**@brief Macro for calculating the flash size of bonding data.

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2012 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  *
  * @defgroup app_button Button Handler
@@ -87,16 +86,12 @@ typedef struct
 {
     uint8_t              pin_no;           /**< Pin to be used as a button. */
     uint8_t              active_state;     /**< APP_BUTTON_ACTIVE_HIGH or APP_BUTTON_ACTIVE_LOW. */
+#if defined(BUTTON_HIGH_ACCURACY_ENABLED) && (BUTTON_HIGH_ACCURACY_ENABLED == 1)
+    bool                 hi_accuracy;      /**< True if GPIOTE high accuracy (IN_EVENT) is used. */
+#endif
     nrf_gpio_pin_pull_t  pull_cfg;         /**< Pull-up or -down configuration. */
     app_button_handler_t button_handler;   /**< Handler to be called when button is pushed. */
 } app_button_cfg_t;
-
-/**@brief  Pin transition direction struct. */
-typedef struct
-{
-    uint32_t high_to_low;   /**Pin went from high to low */
-    uint32_t low_to_high;   /**Pin went from low to high */
-} pin_transition_t;
 
 /**@brief Function for initializing the Buttons.
  *
@@ -132,7 +127,7 @@ uint32_t app_button_disable(void);
 /**@brief Function for checking if a button is currently being pushed.
  *
  * @param[in]  button_id     Button index (in the app_button_cfg_t array given to app_button_init) to be checked.
- * 
+ *
  * @return     Button state.
  */
 bool app_button_is_pushed(uint8_t button_id);

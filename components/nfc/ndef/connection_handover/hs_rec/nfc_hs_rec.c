@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,6 +37,8 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
+#include "sdk_common.h"
+#if NRF_MODULE_ENABLED(NFC_HS_REC)
 
 #include "nfc_hs_rec.h"
 #include "nfc_ac_rec.h"
@@ -101,3 +103,5 @@ ret_code_t nfc_hs_rec_local_record_add(nfc_ndef_record_desc_t * p_hs_rec,
 
     return nfc_ndef_msg_record_add(p_hs_payload->p_local_records, p_local_rec);
 }
+
+#endif // NRF_MODULE_ENABLED(NFC_HS_REC)

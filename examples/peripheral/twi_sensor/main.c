@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  * @defgroup tw_sensor_example main.c
  * @{
@@ -55,9 +54,10 @@
 #include "nrf_drv_twi.h"
 #include "nrf_delay.h"
 
-#define NRF_LOG_MODULE_NAME "APP"
+
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 
 /* TWI instance ID. */
 #define TWI_INSTANCE_ID     0
@@ -110,7 +110,7 @@ void LM75B_set_mode(void)
  */
 __STATIC_INLINE void data_handler(uint8_t temp)
 {
-    NRF_LOG_INFO("Temperature: %d Celsius degrees.\r\n", temp);
+    NRF_LOG_INFO("Temperature: %d Celsius degrees.", temp);
 }
 
 /**
@@ -142,7 +142,7 @@ void twi_init (void)
     const nrf_drv_twi_config_t twi_lm75b_config = {
        .scl                = ARDUINO_SCL_PIN,
        .sda                = ARDUINO_SDA_PIN,
-       .frequency          = NRF_TWI_FREQ_100K,
+       .frequency          = NRF_DRV_TWI_FREQ_100K,
        .interrupt_priority = APP_IRQ_PRIORITY_HIGH,
        .clear_bus_init     = false
     };
@@ -171,8 +171,9 @@ static void read_sensor_data()
 int main(void)
 {
     APP_ERROR_CHECK(NRF_LOG_INIT(NULL));
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
 
-    NRF_LOG_INFO("\r\nTWI sensor example\r\n");
+    NRF_LOG_INFO("\r\nTWI sensor example started.");
     NRF_LOG_FLUSH();
     twi_init();
     LM75B_set_mode();

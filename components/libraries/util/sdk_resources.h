@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,15 +37,18 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  * @brief Definition file for resource usage by SoftDevice, ESB and Gazell.
  */
 
-#ifndef APP_RESOURCES_H__
-#define APP_RESOURCES_H__
+#ifndef SDK_RESOURCES_H__
+#define SDK_RESOURCES_H__
 
-#ifdef SOFTDEVICE_PRESENT
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#if defined(SOFTDEVICE_PRESENT) || defined (BLE_STACK_SUPPORT_REQD) || defined (ANT_STACK_SUPPORT_REQD)
     #include "nrf_sd_def.h"
 #else
     #define SD_PPI_RESTRICTED         0uL /**< 1 if PPI peripheral is restricted, 0 otherwise. */
@@ -65,10 +68,6 @@
 
 #ifdef ESB_PRESENT
     #include "nrf_esb_resources.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 #else
     #define ESB_PPI_CHANNELS_USED    0uL /**< PPI channels utilized by ESB (not available to th spplication). */
     #define ESB_TIMERS_USED          0uL /**< Timers used by ESB. */
@@ -80,9 +79,8 @@ extern "C" {
 #define NRF_SWI_USED          (SD_SWI_USED | GZLL_SWI_USED | ESB_SWI_USED)
 #define NRF_TIMERS_USED       (SD_TIMERS_USED | GZLL_TIMERS_USED | ESB_TIMERS_USED)
 
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif // APP_RESOURCES_H__
+#endif // SDK_RESOURCES_H__

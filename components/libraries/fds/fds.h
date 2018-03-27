@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #ifndef FDS_H__
 #define FDS_H__
 
@@ -102,41 +101,19 @@ enum
 };
 
 
-/**@brief   Part of the record metadata.
- *
- * Contains the record key and the length of the record data.
- */
-typedef struct
-{
-    uint16_t record_key;    //!< The record key (must be in the range 0x0001 - 0xBFFF).
-    uint16_t length_words;  //!< The length of the record data (in 4-byte words).
-} fds_tl_t;
-
-
-/**@brief   Part of the record metadata.
- *
- * Contains the ID of the file that the record belongs to and the CRC16 check value of the record.
- */
-typedef struct
-{
-    uint16_t file_id;   //!< The ID of the file that the record belongs to.
-
-    /**@brief   CRC16 check value.
-     *
-     * The CRC is calculated over the entire record as stored in flash (including the record
-     * metadata except the CRC field itself). The CRC standard employed is CRC-16-CCITT.
-     */
-    uint16_t crc16;
-} fds_ic_t;
-
-
 /**@brief   The record metadata as stored in flash.
+ * @warning Do not edit or reorder the fields in this structure.
  */
 typedef struct
 {
-    fds_tl_t tl;        //!< See @ref fds_tl_t.
-    fds_ic_t ic;        //!< See @ref fds_ic_t.
-    uint32_t record_id; //!< The unique record ID (32 bits).
+    uint16_t record_key;    //!< The record key.
+    uint16_t length_words;  //!< The length of the record data (in 4-byte words).
+    uint16_t file_id;       //!< The ID of the file that the record belongs to.
+    uint16_t crc16;         //!< CRC16-CCITT check value.
+                            /* The CRC is calculated over the entire record as stored in flash,
+                             * including the record metadata except the CRC field itself.
+                             */
+    uint32_t record_id;     //!< The unique record ID (32 bits).
 } fds_header_t;
 
 
@@ -168,28 +145,15 @@ typedef struct
 } fds_flash_record_t;
 
 
-/**@brief   A chunk of record data to be written to flash.
- *
- * @p p_data must be aligned to a word boundary. Make sure to keep it in
- * memory until the operation has completed, which is indicated by the respective FDS event.
- */
+/**@brief   A record to be written to flash. */
 typedef struct
 {
-    void     const * p_data;        //!< Pointer to the data to store. Must be word-aligned.
-    uint16_t         length_words;  //!< Length of data pointed to by @p p_data (in 4-byte words).
-} fds_record_chunk_t;
-
-
-/**@brief   A record to be written to flash.
- */
-typedef struct
-{
-    uint16_t file_id;                           //!< The ID of the file that the record belongs to.
-    uint16_t key;                               //!< The record key.
+    uint16_t file_id;           //!< The ID of the file that the record belongs to.
+    uint16_t key;               //!< The record key.
     struct
     {
-        fds_record_chunk_t const * p_chunks;    //!< The chunks that make up the record data.
-        uint16_t                   num_chunks;  //!< The number of chunks that make up the data.
+        void     const * p_data;
+        uint32_t         length_words;
     } data;
 } fds_record_t;
 
@@ -232,21 +196,15 @@ typedef enum
 } fds_evt_id_t;
 
 
-ANON_UNIONS_ENABLE
+ANON_UNIONS_ENABLE;
 
-/**@brief   An FDS event.
- */
+/**@brief   An FDS event. */
 typedef struct
 {
     fds_evt_id_t id;        //!< The event ID. See @ref fds_evt_id_t.
     ret_code_t   result;    //!< The result of the operation related to this event.
     union
     {
-        struct
-        {
-            /* Currently not used. */
-            uint16_t pages_not_mounted;
-        } init;
         struct
         {
             uint32_t record_id;
@@ -259,35 +217,28 @@ typedef struct
             uint32_t record_id;
             uint16_t file_id;
             uint16_t record_key;
-            uint16_t records_deleted_count;
         } del; //!< Information for @ref FDS_EVT_DEL_RECORD and @ref FDS_EVT_DEL_FILE events.
-        struct
-        {
-            /* Currently not used. */
-            uint16_t pages_skipped;
-            uint16_t space_reclaimed;
-        } gc;
     };
 } fds_evt_t;
 
-ANON_UNIONS_DISABLE
+ANON_UNIONS_DISABLE;
 
 
 /**@brief   File system statistics. */
 typedef struct
 {
+    uint16_t pages_available;   //!< The number of pages available.
     uint16_t open_records;      //!< The number of open records.
     uint16_t valid_records;     //!< The number of valid records.
     uint16_t dirty_records;     //!< The number of deleted ("dirty") records.
     uint16_t words_reserved;    //!< The number of words reserved by @ref fds_reserve().
 
-    /**@brief The number of words written to flash, including those reserved for future writes.
-     */
+    /**@brief The number of words written to flash, including those reserved for future writes. */
     uint16_t words_used;
 
     /**@brief The largest number of free contiguous words in the file system.
      *
-     * This number determines the largest record that can be stored by FDS.
+     * This number indicates the largest record that can be stored by FDS.
      * It takes into account all reservations for future writes.
      */
     uint16_t largest_contig;
@@ -298,6 +249,15 @@ typedef struct
      * records are open while garbage collection is run.
      */
     uint16_t freeable_words;
+
+    /**@brief Filesystem corruption has been detected.
+     *
+     * One or more corrupted records were detected. FDS will heal the filesystem automatically
+     * next time garbage collection is run, but some data may be lost.
+     *
+     * @note: This flag is unrelated to CRC failures.
+     */
+    bool corruption;
 } fds_stat_t;
 
 
@@ -305,7 +265,7 @@ typedef struct
  *
  * @param   p_evt   The event.
  */
-typedef void (*fds_cb_t)(fds_evt_t const * const p_evt);
+typedef void (*fds_cb_t)(fds_evt_t const * p_evt);
 
 
 /**@brief   Function for registering an FDS event handler.
@@ -345,8 +305,8 @@ ret_code_t fds_init(void);
  * If no file with the specified ID exists, it is created. There can be multiple records with the
  * same record key in a file.
  *
- * Some modules need exclusive use of certain file IDs and record keys. See @ref lib_fds_functionality_keys
- * for details.
+ * Some modules need exclusive use of certain file IDs and record keys.
+ * See @ref lib_fds_functionality_keys for details.
  *
  * Record data can consist of multiple chunks. The data must be aligned to a 4 byte boundary, and
  * because it is not buffered internally, it must be kept in memory until the callback for the
@@ -371,8 +331,8 @@ ret_code_t fds_init(void);
  * @retval  FDS_ERR_NO_SPACE_IN_FLASH   If there is not enough free space in flash to store the
  *                                      record.
  */
-ret_code_t fds_record_write(fds_record_desc_t       * const p_desc,
-                            fds_record_t      const * const p_record);
+ret_code_t fds_record_write(fds_record_desc_t       * p_desc,
+                            fds_record_t      const * p_record);
 
 
 /**@brief   Function for reserving space in flash.
@@ -394,7 +354,7 @@ ret_code_t fds_record_write(fds_record_desc_t       * const p_desc,
  * @retval  FDS_ERR_NO_SPACE_IN_FLASH   If there is not enough free space in flash to store the
  *                                      record.
  */
-ret_code_t fds_reserve(fds_reserve_token_t * const p_token, uint16_t length_words);
+ret_code_t fds_reserve(fds_reserve_token_t * p_token, uint16_t length_words);
 
 
 /**@brief   Function for canceling an @ref fds_reserve operation.
@@ -406,7 +366,7 @@ ret_code_t fds_reserve(fds_reserve_token_t * const p_token, uint16_t length_word
  * @retval  FDS_ERR_NULL_ARG        If @p p_token is NULL instead of a valid token address.
  * @retval  FDS_ERR_INVALID_ARG     If @p p_token contains invalid data.
  */
-ret_code_t fds_reserve_cancel(fds_reserve_token_t * const p_token);
+ret_code_t fds_reserve_cancel(fds_reserve_token_t * p_token);
 
 
 /**@brief   Function for writing a record to a space in flash that was reserved using
@@ -445,9 +405,9 @@ ret_code_t fds_reserve_cancel(fds_reserve_token_t * const p_token);
  * @retval  FDS_ERR_NO_SPACE_IN_QUEUES  If the operation queue is full or there are more record
  *                                      chunks than can be buffered.
  */
-ret_code_t fds_record_write_reserved(fds_record_desc_t         * const p_desc,
-                                     fds_record_t        const * const p_record,
-                                     fds_reserve_token_t const * const p_token);
+ret_code_t fds_record_write_reserved(fds_record_desc_t         * p_desc,
+                                     fds_record_t        const * p_record,
+                                     fds_reserve_token_t const * p_token);
 
 
 /**@brief   Function for deleting a record.
@@ -469,7 +429,7 @@ ret_code_t fds_record_write_reserved(fds_record_desc_t         * const p_desc,
  * @retval  FDS_ERR_NULL_ARG            If the specified record descriptor @p p_desc is NULL.
  * @retval  FDS_ERR_NO_SPACE_IN_QUEUES  If the operation queue is full.
  */
-ret_code_t fds_record_delete(fds_record_desc_t * const p_desc);
+ret_code_t fds_record_delete(fds_record_desc_t * p_desc);
 
 
 /**@brief   Function for deleting all records in a file.
@@ -529,8 +489,8 @@ ret_code_t fds_file_delete(uint16_t file_id);
  * @retval  FDS_ERR_NO_SPACE_IN_FLASH   If there is not enough free space in flash to store the
  *                                      updated record.
  */
-ret_code_t fds_record_update(fds_record_desc_t       * const p_desc,
-                             fds_record_t      const * const p_record);
+ret_code_t fds_record_update(fds_record_desc_t       * p_desc,
+                             fds_record_t      const * p_record);
 
 
 /**@brief   Function for iterating through all records in flash.
@@ -548,8 +508,8 @@ ret_code_t fds_record_update(fds_record_desc_t       * const p_desc,
  * @retval  FDS_ERR_NULL_ARG            If @p p_desc or @p p_token is NULL.
  * @retval  FDS_ERR_NOT_FOUND           If no matching record was found.
  */
-ret_code_t fds_record_iterate(fds_record_desc_t * const p_desc,
-                              fds_find_token_t  * const p_token);
+ret_code_t fds_record_iterate(fds_record_desc_t * p_desc,
+                              fds_find_token_t  * p_token);
 
 
 /**@brief   Function for searching for records with a given record key in a file.
@@ -568,10 +528,10 @@ ret_code_t fds_record_iterate(fds_record_desc_t * const p_desc,
  * @retval  FDS_ERR_NULL_ARG            If @p p_desc or @p p_token is NULL.
  * @retval  FDS_ERR_NOT_FOUND           If no matching record was found.
  */
-ret_code_t fds_record_find(uint16_t                  file_id,
-                           uint16_t                  record_key,
-                           fds_record_desc_t * const p_desc,
-                           fds_find_token_t  * const p_token);
+ret_code_t fds_record_find(uint16_t            file_id,
+                           uint16_t            record_key,
+                           fds_record_desc_t * p_desc,
+                           fds_find_token_t  * p_token);
 
 
 /**@brief   Function for searching for records with a given record key.
@@ -589,9 +549,9 @@ ret_code_t fds_record_find(uint16_t                  file_id,
  * @retval  FDS_ERR_NULL_ARG            If @p p_desc or @p p_token is NULL.
  * @retval  FDS_ERR_NOT_FOUND           If no record with the given key was found.
  */
-ret_code_t fds_record_find_by_key(uint16_t                  record_key,
-                                  fds_record_desc_t * const p_desc,
-                                  fds_find_token_t  * const p_token);
+ret_code_t fds_record_find_by_key(uint16_t            record_key,
+                                  fds_record_desc_t * p_desc,
+                                  fds_find_token_t  * p_token);
 
 
 /**@brief   Function for searching for any record in a file.
@@ -609,9 +569,9 @@ ret_code_t fds_record_find_by_key(uint16_t                  record_key,
  * @retval  FDS_ERR_NULL_ARG            If @p p_desc or @p p_token is NULL.
  * @retval  FDS_ERR_NOT_FOUND           If no matching record was found.
  */
-ret_code_t fds_record_find_in_file(uint16_t                  file_id,
-                                   fds_record_desc_t * const p_desc,
-                                   fds_find_token_t  * const p_token);
+ret_code_t fds_record_find_in_file(uint16_t            file_id,
+                                   fds_record_desc_t * p_desc,
+                                   fds_find_token_t  * p_token);
 
 
 /**@brief   Function for opening a record for reading.
@@ -638,8 +598,8 @@ ret_code_t fds_record_find_in_file(uint16_t                  file_id,
  *                                      it might not have been written yet.
  * @retval  FDS_ERR_CRC_CHECK_FAILED    If the CRC check for the record failed.
  */
-ret_code_t fds_record_open(fds_record_desc_t  * const p_desc,
-                           fds_flash_record_t * const p_flash_record);
+ret_code_t fds_record_open(fds_record_desc_t  * p_desc,
+                           fds_flash_record_t * p_flash_record);
 
 
 /**@brief   Function for closing a record.
@@ -658,7 +618,7 @@ ret_code_t fds_record_open(fds_record_desc_t  * const p_desc,
  * @retval  FDS_ERR_NO_OPEN_RECORDS If the record is not open.
  * @retval  FDS_ERR_NOT_FOUND       If the record could not be found.
  */
-ret_code_t fds_record_close(fds_record_desc_t * const p_desc);
+ret_code_t fds_record_close(fds_record_desc_t * p_desc);
 
 
 /**@brief   Function for running garbage collection.
@@ -692,8 +652,8 @@ ret_code_t fds_gc(void);
  * @retval  FDS_SUCCESS         If a descriptor was returned.
  * @retval  FDS_ERR_NULL_ARG    If @p p_desc is NULL.
  */
-ret_code_t fds_descriptor_from_rec_id(fds_record_desc_t * const p_desc,
-                                      uint32_t                  record_id);
+ret_code_t fds_descriptor_from_rec_id(fds_record_desc_t * p_desc,
+                                      uint32_t            record_id);
 
 
 /**@brief   Function for obtaining a record ID from a record descriptor.
@@ -712,8 +672,8 @@ ret_code_t fds_descriptor_from_rec_id(fds_record_desc_t * const p_desc,
  * @retval  FDS_SUCCESS         If a record ID was returned.
  * @retval  FDS_ERR_NULL_ARG    If @p p_desc or @p p_record_id is NULL.
  */
-ret_code_t fds_record_id_from_desc(fds_record_desc_t const * const p_desc,
-                                   uint32_t                * const p_record_id);
+ret_code_t fds_record_id_from_desc(fds_record_desc_t const * p_desc,
+                                   uint32_t                * p_record_id);
 
 
 /**@brief   Function for retrieving file system statistics.
@@ -727,29 +687,8 @@ ret_code_t fds_record_id_from_desc(fds_record_desc_t const * const p_desc,
  * @retval  FDS_ERR_NOT_INITIALIZED     If the module is not initialized.
  * @retval  FDS_ERR_NULL_ARG            If @p p_stat is NULL.
  */
-ret_code_t fds_stat(fds_stat_t * const p_stat);
+ret_code_t fds_stat(fds_stat_t * p_stat);
 
-
-#if defined(FDS_CRC_ENABLED)
-
-/**@brief   Function for enabling and disabling CRC verification for write operations.
- *
- * CRC verification ensures that data that is queued for writing does not change before the write
- * actually happens. Use this function to enable or disable CRC verification. If verification is
- * enabled, the error @ref FDS_ERR_CRC_CHECK_FAILED is returned in the event for
- * @ref fds_record_write, @ref fds_record_write_reserved, or @ref fds_record_update if
- * verification fails.
- *
- * @note
- * CRC verification is enabled or disabled globally, thus for all users of the FDS module.
- *
- * @param[in]   enabled     1 to enable CRC verification. 0 to disable CRC verification.
- *
- * @retval  FDS_SUCCESS     If CRC verification was enabled or disabled successfully.
- */
-ret_code_t fds_verify_crc_on_writes(bool enabled);
-
-#endif
 
 /** @} */
 

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2012 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /**
    @defgroup dtm_standalone main.c
    @{
@@ -55,6 +54,7 @@
 #include "nrf_error.h"
 #include "app_util.h"
 #include "nrf_drv_uart.h"
+#include "nrf_peripherals.h"
 #include "app_util_platform.h"
 
 //Configuration parameters.
@@ -83,17 +83,18 @@
  * @note If UART bit rate is changed, this value should be recalculated as well.
  */
 
-static uint32_t       m_baud_rates[] = {[UART_BAUD_RATE_1200]   = UART_BAUDRATE_BAUDRATE_Baud1200,
-                                        [UART_BAUD_RATE_2400]   = UART_BAUDRATE_BAUDRATE_Baud2400,
-                                        [UART_BAUD_RATE_4800]   = UART_BAUDRATE_BAUDRATE_Baud4800,
-                                        [UART_BAUD_RATE_9600]   = UART_BAUDRATE_BAUDRATE_Baud9600,
-                                        [UART_BAUD_RATE_14400]  = UART_BAUDRATE_BAUDRATE_Baud14400,
-                                        [UART_BAUD_RATE_19200]  = UART_BAUDRATE_BAUDRATE_Baud19200,
-                                        [UART_BAUD_RATE_28800]  = UART_BAUDRATE_BAUDRATE_Baud28800,
-                                        [UART_BAUD_RATE_38400]  = UART_BAUDRATE_BAUDRATE_Baud38400,
-                                        [UART_BAUD_RATE_57600]  = UART_BAUDRATE_BAUDRATE_Baud57600,
-                                        [UART_BAUD_RATE_76800]  = UART_BAUDRATE_BAUDRATE_Baud76800,
-                                        [UART_BAUD_RATE_115200] = UART_BAUDRATE_BAUDRATE_Baud115200, };
+static uint32_t       m_baud_rates[] = {[UART_BAUD_RATE_1200]   = NRF_UART_BAUDRATE_1200,
+                                        [UART_BAUD_RATE_2400]   = NRF_UART_BAUDRATE_2400,
+                                        [UART_BAUD_RATE_4800]   = NRF_UART_BAUDRATE_4800,
+                                        [UART_BAUD_RATE_9600]   = NRF_UART_BAUDRATE_9600,
+                                        [UART_BAUD_RATE_14400]  = NRF_UART_BAUDRATE_14400,
+                                        [UART_BAUD_RATE_19200]  = NRF_UART_BAUDRATE_19200,
+                                        [UART_BAUD_RATE_28800]  = NRF_UART_BAUDRATE_28800,
+                                        [UART_BAUD_RATE_38400]  = NRF_UART_BAUDRATE_38400,
+                                        [UART_BAUD_RATE_57600]  = NRF_UART_BAUDRATE_57600,
+                                        [UART_BAUD_RATE_76800]  = NRF_UART_BAUDRATE_76800,
+                                        [UART_BAUD_RATE_115200] = NRF_UART_BAUDRATE_115200 };
+
 
 static uint32_t       m_iteration[] = {[UART_BAUD_RATE_1200]   = 51,
                                        [UART_BAUD_RATE_2400]   = 35,
@@ -127,7 +128,11 @@ static uint32_t uart_init(app_uart_stream_comm_params_t * p_comm_params)
     config.baudrate = (nrf_uart_baudrate_t) m_baud_rates[p_comm_params->baud_rate];
     config.hwfc = NRF_UART_HWFC_DISABLED;
     config.parity = NRF_UART_PARITY_EXCLUDED;
-
+#ifdef UART_PRESENT
+    //Current implementation of DTM requires legacy UART features and 
+    // it will not work on nrf52810.
+    config.use_easy_dma = false;
+#endif
     nrf_drv_uart_uninit(&m_dtm_uart_driver);
     uint32_t err_code = nrf_drv_uart_init(&m_dtm_uart_driver, &config, NULL);
     if (err_code != NRF_SUCCESS)

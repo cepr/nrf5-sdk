@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -48,17 +48,28 @@
 #include "nrf_drv_power.h"
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 #include "app_timer.h"
+#include "app_error.h"
 #include "bsp.h"
+#include "bsp_cli.h"
+#include "nrf_cli.h"
+#include "nrf_cli_uart.h"
 
 /**
- * @brief APP_TIMER prescaler configuration
+ * @brief CLI interface over UART
  */
-#define APP_TIMER_PRESCALER     0
-/**
- * @brief APP_TIMER size of operation queue
- */
-#define APP_TIMER_OP_QUEUE_SIZE 2
+NRF_CLI_UART_DEF(m_cli_uart_transport, 0, 64, 16);
+NRF_CLI_DEF(m_cli_uart,
+            "uart_cli:~$ ",
+            &m_cli_uart_transport.transport,
+            '\r',
+            4);
+
+static bool m_send_flag = 0;
+
+#define BTN_DATA_SEND               0
+#define BTN_DATA_KEY_RELEASE        (bsp_event_t)(BSP_EVENT_KEY_LAST + 1)
 
 /**
  * @brief Button used to simulate mouse move
@@ -142,9 +153,10 @@
 
 /** Configuration descriptor */
 #define DEVICE_SELF_POWERED 1
-#define REMOTE_WK 0
+#define REMOTE_WU           1
+
 #define USBD_CONFIG_DESCRIPTOR_SIZE   9
-#define USBD_CONFIG_DESCRIPTOR_FULL_SIZE   (9+(9+9+7))
+#define USBD_CONFIG_DESCRIPTOR_FULL_SIZE   (9 + (9 + 9 + 7))
 #define USBD_CONFIG_DESCRIPTOR  \
     0x09,         /* bLength | length of descriptor                                             */\
     0x02,         /* bDescriptorType | descriptor type (CONFIGURATION)                          */\
@@ -152,7 +164,7 @@
     0x01,         /* bNumInterfaces                                                             */\
     0x01,         /* bConfigurationValue                                                        */\
     0x00,         /* index of string Configuration | configuration string index (not supported) */\
-    0x80|(DEVICE_SELF_POWERED<<6)|(REMOTE_WK<<5), /* bmAttributes                               */\
+    0x80| (((DEVICE_SELF_POWERED) ? 1U:0U)<<6) | (((REMOTE_WU) ? 1U:0U)<<5), /* bmAttributes    */\
     49            /* maximum power in steps of 2mA (98mA)                                       */
 
 #define USBD_INTERFACE0_DESCRIPTOR  \
@@ -162,7 +174,7 @@
     0x00,         /* bAlternateSetting                                                                */\
     0x01,         /* bNumEndpoints | number of endpoints (1)                                          */\
     0x03,         /* bInterfaceClass | interface class (3..defined by USB spec: HID)                  */\
-    0x01,         /* bInterfaceSubClass |interface sub-class (1..defined by USB spec: boot interface) */\
+    0x00,         /* bInterfaceSubClass |interface sub-class (0.. no boot interface)                  */\
     0x02,         /* bInterfaceProtocol | interface protocol (1..defined by USB spec: mouse)          */\
     0x00          /* interface string index (not supported)                                           */
 
@@ -203,7 +215,7 @@
 #define USBD_STRING_MANUFACTURER \
     42,           /* length of descriptor (? bytes)   */\
     0x03,         /* descriptor type                  */\
-    'N', 0x00,    /* Define Unicode String "Logitech  */\
+    'N', 0x00,    /* Define Unicode String "Nordic Semiconductor  */\
     'o', 0x00, \
     'r', 0x00, \
     'd', 0x00, \
@@ -320,7 +332,15 @@ static const uint8_t get_descriptor_report_interface_0[] = {
 static const uint8_t get_config_resp_configured[]   = {1};
 static const uint8_t get_config_resp_unconfigured[] = {0};
 
-static const uint8_t get_status_device_resp[]    = {1, 0}; //LSB first: self-powered, no remoteWk
+static const uint8_t get_status_device_resp_nrwu[] = {
+    ((DEVICE_SELF_POWERED) ? 1 : 0), //LSB first: self-powered, no remoteWk
+    0
+};
+static const uint8_t get_status_device_resp_rwu[]  = {
+    ((DEVICE_SELF_POWERED) ? 1 : 0) | 2, //LSB first: self-powered, remoteWk
+    0
+};
+
 static const uint8_t get_status_interface_resp[] = {0, 0};
 static const uint8_t get_status_ep_halted_resp[] = {1, 0};
 static const uint8_t get_status_ep_active_resp[] = {0, 0};
@@ -347,6 +367,27 @@ static const uint8_t get_status_ep_active_resp[] = {0, 0};
 static volatile bool m_usbd_configured = false;
 
 /**
+ * @brief USB suspended
+ *
+ * The flag that is used to mark the fact that USB is suspended and requires wake up
+ * if new data is available.
+ *
+ * @note This variable is changed from the main loop.
+ */
+static bool m_usbd_suspended = false;
+
+/**
+ * @brief Mark the fact if remote wake up is enabled
+ *
+ * The internal flag that marks if host enabled the remote wake up functionality in this device.
+ */
+static
+#if REMOTE_WU
+    volatile // Disallow optimization only if Remote wakeup is enabled
+#endif
+bool m_usbd_rwu_enabled = false;
+
+/**
  * @brief Current mouse position
  *
  * The index of current mouse position that would be changed to real offset.
@@ -362,12 +403,60 @@ static volatile uint8_t m_mouse_position = 0;
 static volatile bool m_send_mouse_position = false;
 
 /**
+ * @brief The requested suspend state
+ *
+ * The currently requested suspend state based on the events
+ * received from USBD library.
+ * If the value here is different than the @ref m_usbd_suspended
+ * the state changing would be processed inside main loop.
+ */
+static volatile bool m_usbd_suspend_state_req = false;
+
+/**
  * @brief System OFF request flag
  *
  * This flag is used in button event processing and marks the fact that
  * system OFF should be activated from main loop.
  */
 static volatile bool m_system_off_req = false;
+
+
+/**
+ * @brief Setup all the endpoints for selected configuration
+ *
+ * Function sets all the endpoints for specific configuration.
+ *
+ * @note
+ * Setting the configuration index 0 means technically disabling the HID interface.
+ * Such configuration should be set when device is starting or USB reset is detected.
+ *
+ * @param index Configuration index
+ *
+ * @retval NRF_ERROR_INVALID_PARAM Invalid configuration
+ * @retval NRF_SUCCESS             Configuration successfully set
+ */
+static ret_code_t ep_configuration(uint8_t index)
+{
+    if ( index == 1 )
+    {
+        nrf_drv_usbd_ep_dtoggle_clear(NRF_DRV_USBD_EPIN1);
+        nrf_drv_usbd_ep_stall_clear(NRF_DRV_USBD_EPIN1);
+        nrf_drv_usbd_ep_enable(NRF_DRV_USBD_EPIN1);
+        m_usbd_configured = true;
+        nrf_drv_usbd_setup_clear();
+    }
+    else if ( index == 0 )
+    {
+        nrf_drv_usbd_ep_disable(NRF_DRV_USBD_EPIN1);
+        m_usbd_configured = false;
+        nrf_drv_usbd_setup_clear();
+    }
+    else
+    {
+        return NRF_ERROR_INVALID_PARAM;
+    }
+    return NRF_SUCCESS;
+}
 
 /**
  * @name Processing setup requests
@@ -389,7 +478,7 @@ static void respond_setup_data(
     void const * p_data, size_t size)
 {
     /* Check the size against required response size */
-    if(size > p_setup->wLength)
+    if (size > p_setup->wLength)
     {
         size = p_setup->wLength;
     }
@@ -399,10 +488,10 @@ static void respond_setup_data(
         .p_data = {.tx = p_data},
         .size = size
     };
-    ret = nrf_drv_usbd_ep_transfer(NRF_DRV_USBD_EPIN0, &transfer, NULL);
-    if(ret != NRF_SUCCESS)
+    ret = nrf_drv_usbd_ep_transfer(NRF_DRV_USBD_EPIN0, &transfer);
+    if (ret != NRF_SUCCESS)
     {
-        NRF_LOG_ERROR("Transfer failed: %08x", (uint32_t)ret);
+        NRF_LOG_ERROR("Transfer starting failed: %d", (uint32_t)ret);
     }
     ASSERT(ret == NRF_SUCCESS);
     UNUSED_VARIABLE(ret);
@@ -412,36 +501,22 @@ static void respond_setup_data(
 /** React to GetStatus */
 static void usbd_setup_GetStatus(nrf_drv_usbd_setup_t const * const p_setup)
 {
-    switch(p_setup->bmRequestType)
+    switch (p_setup->bmRequestType)
     {
     case 0x80: // Device
-        if(m_usbd_configured)
+        if (((p_setup->wIndex) & 0xff) == 0)
         {
-            if(((p_setup->wIndex) & 0xff) == 0)
-            {
-                respond_setup_data(
-                    p_setup,
-                    get_status_device_resp,
-                    sizeof(get_status_device_resp));
-                return;
-            }
-        }
-        else
-        {
-            if(((p_setup->wIndex) & 0xff) == 0)
-            {
-                respond_setup_data(
-                    p_setup,
-                    get_status_device_resp,
-                    sizeof(get_status_device_resp));
-                return;
-            }
+            respond_setup_data(
+                p_setup,
+                m_usbd_rwu_enabled ? get_status_device_resp_rwu : get_status_device_resp_nrwu,
+                sizeof(get_status_device_resp_nrwu));
+            return;
         }
         break;
     case 0x81: // Interface
-        if(m_usbd_configured) // Respond only if configured
+        if (m_usbd_configured) // Respond only if configured
         {
-            if(((p_setup->wIndex) & 0xff) == 0) // Only interface 0 supported
+            if (((p_setup->wIndex) & 0xff) == 0) // Only interface 0 supported
             {
                 respond_setup_data(
                     p_setup,
@@ -452,7 +527,7 @@ static void usbd_setup_GetStatus(nrf_drv_usbd_setup_t const * const p_setup)
         }
         break;
     case 0x82: // Endpoint
-        if(((p_setup->wIndex) & 0xff) == 0) // Endpoint 0
+        if (((p_setup->wIndex) & 0xff) == 0) // Endpoint 0
         {
             respond_setup_data(
                 p_setup,
@@ -460,11 +535,11 @@ static void usbd_setup_GetStatus(nrf_drv_usbd_setup_t const * const p_setup)
                 sizeof(get_status_ep_active_resp));
             return;
         }
-        if(m_usbd_configured) // Other endpoints responds if configured
+        if (m_usbd_configured) // Other endpoints responds if configured
         {
-            if(((p_setup->wIndex) & 0xff) == NRF_DRV_USBD_EPIN1)
+            if (((p_setup->wIndex) & 0xff) == NRF_DRV_USBD_EPIN1)
             {
-                if(nrf_drv_usbd_ep_stall_check(NRF_DRV_USBD_EPIN1))
+                if (nrf_drv_usbd_ep_stall_check(NRF_DRV_USBD_EPIN1))
                 {
                     respond_setup_data(
                         p_setup,
@@ -486,33 +561,47 @@ static void usbd_setup_GetStatus(nrf_drv_usbd_setup_t const * const p_setup)
     default:
         break; // Just go to stall
     }
+    NRF_LOG_ERROR("Unknown status: 0x%2x", p_setup->bmRequestType);
     nrf_drv_usbd_setup_stall();
 }
 
 static void usbd_setup_ClearFeature(nrf_drv_usbd_setup_t const * const p_setup)
 {
-    if( (p_setup->bmRequestType) == 0x02 ) // standard request, recipient=endpoint
+    if ((p_setup->bmRequestType) == 0x02) // standard request, recipient=endpoint
     {
-        if(((p_setup->wValue) == 0) && (((p_setup->wIndex) >> 8) == 0))
-        {/** @todo RK missing EP0 IN and OUT support */
-            if(((p_setup->wIndex) & 0xff) == NRF_DRV_USBD_EPIN1)
+        if ((p_setup->wValue) == 0)
+        {
+            if ((p_setup->wIndex) == NRF_DRV_USBD_EPIN1)
             {
-                nrf_drv_usbd_ep_stall(NRF_DRV_USBD_EPIN1);
+                nrf_drv_usbd_ep_stall_clear(NRF_DRV_USBD_EPIN1);
                 nrf_drv_usbd_setup_clear();
                 return;
             }
         }
     }
+    else if ((p_setup->bmRequestType) ==  0x0) // standard request, recipient=device
+    {
+        if (REMOTE_WU)
+        {
+            if ((p_setup->wValue) == 1) // Feature Wakeup
+            {
+                m_usbd_rwu_enabled = false;
+                nrf_drv_usbd_setup_clear();
+                return;
+            }
+        }
+    }
+    NRF_LOG_ERROR("Unknown feature to clear");
     nrf_drv_usbd_setup_stall();
 }
 
 static void usbd_setup_SetFeature(nrf_drv_usbd_setup_t const * const p_setup)
 {
-    if( (p_setup->bmRequestType) == 0x02 ) // standard request, recipient=endpoint
+    if ((p_setup->bmRequestType) == 0x02) // standard request, recipient=endpoint
     {
-        if(((p_setup->wValue) == 0) && (((p_setup->wIndex) >> 8) == 0))
-        {/** @todo RK missing EP0 IN and OUT support */
-            if(((p_setup->wIndex) & 0xff) == NRF_DRV_USBD_EPIN1)
+        if ((p_setup->wValue) == 0) // Feature HALT
+        {
+            if ((p_setup->wIndex) == NRF_DRV_USBD_EPIN1)
             {
                 nrf_drv_usbd_ep_stall(NRF_DRV_USBD_EPIN1);
                 nrf_drv_usbd_setup_clear();
@@ -520,16 +609,29 @@ static void usbd_setup_SetFeature(nrf_drv_usbd_setup_t const * const p_setup)
             }
         }
     }
+    else if ((p_setup->bmRequestType) ==  0x0) // standard request, recipient=device
+    {
+        if (REMOTE_WU)
+        {
+            if ((p_setup->wValue) == 1) // Feature Wakeup
+            {
+                m_usbd_rwu_enabled = true;
+                nrf_drv_usbd_setup_clear();
+                return;
+            }
+        }
+    }
+    NRF_LOG_ERROR("Unknown feature to set");
     nrf_drv_usbd_setup_stall();
 }
 
 static void usbd_setup_GetDescriptor(nrf_drv_usbd_setup_t const * const p_setup)
 {
     //determine which descriptor has been asked for
-    switch((p_setup->wValue) >> 8)
+    switch ((p_setup->wValue) >> 8)
     {
     case 1: // Device
-        if((p_setup->bmRequestType) == 0x80)
+        if ((p_setup->bmRequestType) == 0x80)
         {
             respond_setup_data(
                 p_setup,
@@ -539,7 +641,7 @@ static void usbd_setup_GetDescriptor(nrf_drv_usbd_setup_t const * const p_setup)
         }
         break;
     case 2: // Configuration
-        if((p_setup->bmRequestType) == 0x80)
+        if ((p_setup->bmRequestType) == 0x80)
         {
             respond_setup_data(
                 p_setup,
@@ -549,10 +651,10 @@ static void usbd_setup_GetDescriptor(nrf_drv_usbd_setup_t const * const p_setup)
         }
         break;
     case 3: // String
-        if((p_setup->bmRequestType) == 0x80)
+        if ((p_setup->bmRequestType) == 0x80)
         {
             // Select the string
-            switch((p_setup->wValue) & 0xFF)
+            switch ((p_setup->wValue) & 0xFF)
             {
             case USBD_STRING_LANG_IX:
                 respond_setup_data(
@@ -577,10 +679,10 @@ static void usbd_setup_GetDescriptor(nrf_drv_usbd_setup_t const * const p_setup)
         }
         break;
     case 4: // Interface
-        if((p_setup->bmRequestType) == 0x80)
+        if ((p_setup->bmRequestType) == 0x80)
         {
-            // Witch interface?
-            if((((p_setup->wValue) & 0xFF) == 0))
+            // Which interface?
+            if ((((p_setup->wValue) & 0xFF) == 0))
             {
                 respond_setup_data(
                     p_setup,
@@ -591,10 +693,10 @@ static void usbd_setup_GetDescriptor(nrf_drv_usbd_setup_t const * const p_setup)
         }
         break;
     case 5: // Endpoint
-        if((p_setup->bmRequestType) == 0x80)
+        if ((p_setup->bmRequestType) == 0x80)
         {
-            // Witch endpoint?
-            if((((p_setup->wValue) & 0xFF) == 1))
+            // Which endpoint?
+            if (((p_setup->wValue) & 0xFF) == 1)
             {
                 respond_setup_data(
                     p_setup,
@@ -605,10 +707,10 @@ static void usbd_setup_GetDescriptor(nrf_drv_usbd_setup_t const * const p_setup)
         }
         break;
     case 0x21: // HID
-        if((p_setup->bmRequestType) == 0x81)
+        if ((p_setup->bmRequestType) == 0x81)
         {
-            // Witch interface
-            if((((p_setup->wValue) & 0xFF) == 0))
+            // Which interface
+            if (((p_setup->wValue) & 0xFF) == 0)
             {
                 respond_setup_data(
                     p_setup,
@@ -619,10 +721,10 @@ static void usbd_setup_GetDescriptor(nrf_drv_usbd_setup_t const * const p_setup)
         }
         break;
     case 0x22: // HID report
-        if((p_setup->bmRequestType) == 0x81)
+        if ((p_setup->bmRequestType) == 0x81)
         {
-            //which interface?
-            if((((p_setup->wValue) & 0xFF) == 0))
+            // Which interface?
+            if (((p_setup->wValue) & 0xFF) == 0)
             {
                 respond_setup_data(
                     p_setup,
@@ -636,12 +738,16 @@ static void usbd_setup_GetDescriptor(nrf_drv_usbd_setup_t const * const p_setup)
         break; // Not supported - go to stall
     }
 
+    NRF_LOG_ERROR("Unknown descriptor requested: 0x%2x, type: 0x%2x or value: 0x%2x",
+        p_setup->wValue >> 8,
+        p_setup->bmRequestType,
+        p_setup->wValue & 0xFF);
     nrf_drv_usbd_setup_stall();
 }
 
 static void usbd_setup_GetConfig(nrf_drv_usbd_setup_t const * const p_setup)
 {
-    if(m_usbd_configured)
+    if (m_usbd_configured)
     {
         respond_setup_data(
             p_setup,
@@ -659,31 +765,22 @@ static void usbd_setup_GetConfig(nrf_drv_usbd_setup_t const * const p_setup)
 
 static void usbd_setup_SetConfig(nrf_drv_usbd_setup_t const * const p_setup)
 {
-    if (p_setup->bmRequestType == 0x00)
+    if ((p_setup->bmRequestType) == 0x00)
     {
         // accept only 0 and 1
-        if(((p_setup->wIndex) == 0) && ((p_setup->wLength) == 0))
+        if (((p_setup->wIndex) == 0) && ((p_setup->wLength) == 0) &&
+            ((p_setup->wValue) <= UINT8_MAX))
         {
-            if( (p_setup->wValue) == 1 )
+            if (NRF_SUCCESS == ep_configuration((uint8_t)(p_setup->wValue)))
             {
-                nrf_drv_usbd_ep_enable(NRF_DRV_USBD_EPIN1);
-                m_usbd_configured = true;
                 nrf_drv_usbd_setup_clear();
                 return;
-            }
-            else if( (p_setup->wValue) == 0 )
-            {
-                nrf_drv_usbd_ep_disable(NRF_DRV_USBD_EPIN1);
-                m_usbd_configured = false;
-                nrf_drv_usbd_setup_clear();
-                return;
-            }
-            else
-            {
-                // Wrong value
             }
         }
     }
+    NRF_LOG_ERROR("Wrong configuration: Index: 0x%2x, Value: 0x%2x.",
+        p_setup->wIndex,
+        p_setup->wValue);
     nrf_drv_usbd_setup_stall();
 }
 
@@ -695,6 +792,7 @@ static void usbd_setup_SetIdle(nrf_drv_usbd_setup_t const * const p_setup)
         nrf_drv_usbd_setup_clear();
         return;
     }
+    NRF_LOG_ERROR("Set Idle wrong type: 0x%2x.", p_setup->bmRequestType);
     nrf_drv_usbd_setup_stall();
 }
 
@@ -702,6 +800,7 @@ static void usbd_setup_SetInterface(
     nrf_drv_usbd_setup_t const * const p_setup)
 {
     //no alternate setting is supported - STALL always
+    NRF_LOG_ERROR("No alternate interfaces supported.");
     nrf_drv_usbd_setup_stall();
 }
 
@@ -714,6 +813,7 @@ static void usbd_setup_SetProtocol(
         nrf_drv_usbd_setup_clear();
         return;
     }
+    NRF_LOG_ERROR("Set Protocol wrong type: 0x%2x.", p_setup->bmRequestType);
     nrf_drv_usbd_setup_stall();
 }
 
@@ -722,40 +822,101 @@ static void usbd_setup_SetProtocol(
 
 static void usbd_event_handler(nrf_drv_usbd_evt_t const * const p_event)
 {
-    switch(p_event->type)
+    switch (p_event->type)
     {
+    case NRF_DRV_USBD_EVT_SUSPEND:
+        NRF_LOG_INFO("SUSPEND state detected");
+        m_usbd_suspend_state_req = true;
+        break;
+    case NRF_DRV_USBD_EVT_RESUME:
+        NRF_LOG_INFO("RESUMING from suspend");
+        m_usbd_suspend_state_req = false;
+        break;
+    case NRF_DRV_USBD_EVT_WUREQ:
+        NRF_LOG_INFO("RemoteWU initiated");
+        m_usbd_suspend_state_req = false;
+        break;
+    case NRF_DRV_USBD_EVT_RESET:
+        {
+            ret_code_t ret = ep_configuration(0);
+            ASSERT(ret == NRF_SUCCESS);
+            UNUSED_VARIABLE(ret);
+            m_usbd_suspend_state_req = false;
+            break;
+        }
     case NRF_DRV_USBD_EVT_SOF:
         {
             static uint32_t cycle = 0;
             ++cycle;
-            if((cycle % (m_usbd_configured ? 500 : 100)) == 0)
+            if ((cycle % (m_usbd_configured ? 500 : 100)) == 0)
             {
                 bsp_board_led_invert(LED_USB_STATUS);
             }
             break;
         }
     case NRF_DRV_USBD_EVT_EPTRANSFER:
-        if(NRF_DRV_USBD_EPIN1 == p_event->data.eptransfer.ep)
+        if (NRF_DRV_USBD_EPIN1 == p_event->data.eptransfer.ep)
         {
             m_send_mouse_position = false;
         }
-        if(NRF_DRV_USBD_EPIN0 == p_event->data.eptransfer.ep)
+        else
+        if (NRF_DRV_USBD_EPIN0 == p_event->data.eptransfer.ep)
         {
-            if(NRF_USBD_EP_OK == p_event->data.eptransfer.status)
+            if (NRF_USBD_EP_OK == p_event->data.eptransfer.status)
             {
-                nrf_drv_usbd_setup_clear();
+                if (!nrf_drv_usbd_errata_154())
+                {
+                    /* Transfer ok - allow status stage */
+                    nrf_drv_usbd_setup_clear();
+                }
+            }
+            else if (NRF_USBD_EP_ABORTED == p_event->data.eptransfer.status)
+            {
+                /* Just ignore */
+                NRF_LOG_INFO("Transfer aborted event on EPIN0");
             }
             else
             {
+                NRF_LOG_ERROR("Transfer failed on EPIN0: %d", p_event->data.eptransfer.status);
                 nrf_drv_usbd_setup_stall();
             }
+        }
+        else
+        if (NRF_DRV_USBD_EPOUT0 == p_event->data.eptransfer.ep)
+        {
+            /* NOTE: No EPOUT0 data transfers are used.
+             * The code is here as a pattern how to support such a transfer. */
+            if (NRF_USBD_EP_OK == p_event->data.eptransfer.status)
+            {
+                /* NOTE: Data values or size may be tested here to decide if clear or stall.
+                 * If errata 154 is present the data transfer is acknowledged by the hardware. */
+                if (!nrf_drv_usbd_errata_154())
+                {
+                    /* Transfer ok - allow status stage */
+                    nrf_drv_usbd_setup_clear();
+                }
+            }
+            else if (NRF_USBD_EP_ABORTED == p_event->data.eptransfer.status)
+            {
+                /* Just ignore */
+                NRF_LOG_INFO("Transfer aborted event on EPOUT0");
+            }
+            else
+            {
+                NRF_LOG_ERROR("Transfer failed on EPOUT0: %d", p_event->data.eptransfer.status);
+                nrf_drv_usbd_setup_stall();
+            }
+        }
+        else
+        {
+            /* Nothing to do */
         }
         break;
     case NRF_DRV_USBD_EVT_SETUP:
         {
             nrf_drv_usbd_setup_t setup;
             nrf_drv_usbd_setup_get(&setup);
-            switch(setup.bmRequest)
+            switch (setup.bmRequest)
             {
             case 0x00: // GetStatus
                 usbd_setup_GetStatus(&setup);
@@ -793,10 +954,12 @@ static void usbd_event_handler(nrf_drv_usbd_evt_t const * const p_event)
                 }
                 else
                 {
+                    NRF_LOG_ERROR("Command 0xB. Unknown request: 0x%2x", setup.bmRequestType);
                     nrf_drv_usbd_setup_stall();
                 }
                 break;
             default:
+                NRF_LOG_ERROR("Unknown request: 0x%2x", setup.bmRequest);
                 nrf_drv_usbd_setup_stall();
                 return;
             }
@@ -812,7 +975,7 @@ static void move_mouse_pointer(void)
 {
     static uint32_t databuffer;
 
-    if(!m_usbd_configured)
+    if (!m_usbd_configured)
         return;
     if (!m_send_mouse_position)
     {
@@ -843,34 +1006,33 @@ static void move_mouse_pointer(void)
             .p_data = {.tx = &databuffer},
             .size = sizeof(databuffer)
         };
+        m_send_mouse_position = true;
         UNUSED_RETURN_VALUE(nrf_drv_usbd_ep_transfer(
             NRF_DRV_USBD_EPIN1,
-            &transfer,
-            NULL));
-        m_send_mouse_position = true;
+            &transfer));
     }
 }
 
 static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
 {
-    switch(event)
+    switch (event)
     {
     case NRF_DRV_POWER_USB_EVT_DETECTED:
-        NRF_LOG_INFO("USB power detected\r\n");
-        if(!nrf_drv_usbd_is_enabled())
+        NRF_LOG_INFO("USB power detected");
+        if (!nrf_drv_usbd_is_enabled())
         {
             nrf_drv_usbd_enable();
         }
         break;
     case NRF_DRV_POWER_USB_EVT_REMOVED:
-        NRF_LOG_INFO("USB power removed\r\n");
+        NRF_LOG_INFO("USB power removed");
         m_usbd_configured = false;
         m_send_mouse_position = false;
-        if(nrf_drv_usbd_is_started())
+        if (nrf_drv_usbd_is_started())
         {
             nrf_drv_usbd_stop();
         }
-        if(nrf_drv_usbd_is_enabled())
+        if (nrf_drv_usbd_is_enabled())
         {
             nrf_drv_usbd_disable();
         }
@@ -879,9 +1041,9 @@ static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
         bsp_board_led_off(LED_USB_POWER);
         break;
     case NRF_DRV_POWER_USB_EVT_READY:
-        NRF_LOG_INFO("USB ready\r\n");
+        NRF_LOG_INFO("USB ready");
         bsp_board_led_on(LED_USB_POWER);
-        if(!nrf_drv_usbd_is_started())
+        if (!nrf_drv_usbd_is_started())
         {
             nrf_drv_usbd_start(true);
         }
@@ -893,13 +1055,26 @@ static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
 
 static void bsp_evt_handler(bsp_event_t evt)
 {
-    switch(evt)
+    switch ((unsigned int)evt)
     {
     case BSP_EVENT_SYSOFF:
+    {
         m_system_off_req = true;
         break;
-    default:
+    }
+    case CONCAT_2(BSP_EVENT_KEY_, BTN_DATA_SEND):
+    {
+        m_send_flag = 1;
         break;
+    }
+    
+    case BTN_DATA_KEY_RELEASE:
+    {
+        m_send_flag = 0;
+        break;
+    }
+    default:
+        return;
     }
 }
 
@@ -913,13 +1088,14 @@ static void init_power_clock(void)
     APP_ERROR_CHECK(ret);
     nrf_drv_clock_hfclk_request(NULL);
     nrf_drv_clock_lfclk_request(NULL);
-    while(!(nrf_drv_clock_hfclk_is_running() &&
+    while (!(nrf_drv_clock_hfclk_is_running() &&
             nrf_drv_clock_lfclk_is_running()))
     {
         /* Just waiting */
     }
 
-    APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_OP_QUEUE_SIZE, false);
+    ret = app_timer_init();
+    APP_ERROR_CHECK(ret);
 
     /* Avoid warnings if assertion is disabled */
     UNUSED_VARIABLE(ret);
@@ -928,10 +1104,7 @@ static void init_power_clock(void)
 static void init_bsp(void)
 {
     ret_code_t ret;
-    ret = bsp_init(
-        BSP_INIT_BUTTONS,
-        APP_TIMER_TICKS(100, APP_TIMER_PRESCALER),
-        bsp_evt_handler);
+    ret = bsp_init(BSP_INIT_BUTTONS, bsp_evt_handler);
     APP_ERROR_CHECK(ret);
 
     ret = bsp_event_to_button_action_assign(
@@ -939,108 +1112,138 @@ static void init_bsp(void)
         BSP_BUTTON_ACTION_RELEASE,
         BSP_EVENT_SYSOFF);
     APP_ERROR_CHECK(ret);
+    ret = bsp_event_to_button_action_assign(BTN_DATA_SEND,
+                                            BSP_BUTTON_ACTION_RELEASE,
+                                            BTN_DATA_KEY_RELEASE);
+    APP_ERROR_CHECK(ret);
     /* Avoid warnings if assertion is disabled */
     UNUSED_VARIABLE(ret);
+}
+
+static void init_cli(void)
+{
+    ret_code_t ret;
+    ret = bsp_cli_init(bsp_evt_handler);
+    APP_ERROR_CHECK(ret);
+    nrf_drv_uart_config_t uart_config = NRF_DRV_UART_DEFAULT_CONFIG;
+    uart_config.pseltxd = TX_PIN_NUMBER;
+    uart_config.pselrxd = RX_PIN_NUMBER;
+    uart_config.hwfc    = NRF_UART_HWFC_DISABLED;
+    ret = nrf_cli_init(&m_cli_uart, &uart_config, true, true, NRF_LOG_SEVERITY_INFO);
+    APP_ERROR_CHECK(ret);
+    ret = nrf_cli_start(&m_cli_uart);
+    APP_ERROR_CHECK(ret);
 }
 
 static void log_resetreason(void)
 {
     /* Reset reason */
     uint32_t rr = nrf_power_resetreas_get();
-    NRF_LOG_INFO("Reset reasons:\r\n");
-    if(0 == rr)
+    NRF_LOG_INFO("Reset reasons:");
+    if (0 == rr)
     {
-        NRF_LOG_INFO("- NONE\r\n");
+        NRF_LOG_INFO("- NONE");
     }
-    if(0 != (rr & NRF_POWER_RESETREAS_RESETPIN_MASK))
+    if (0 != (rr & NRF_POWER_RESETREAS_RESETPIN_MASK))
     {
-        NRF_LOG_INFO("- RESETPIN\r\n");
+        NRF_LOG_INFO("- RESETPIN");
     }
-    if(0 != (rr & NRF_POWER_RESETREAS_DOG_MASK     ))
+    if (0 != (rr & NRF_POWER_RESETREAS_DOG_MASK     ))
     {
-        NRF_LOG_INFO("- DOG\r\n");
+        NRF_LOG_INFO("- DOG");
     }
-    if(0 != (rr & NRF_POWER_RESETREAS_SREQ_MASK    ))
+    if (0 != (rr & NRF_POWER_RESETREAS_SREQ_MASK    ))
     {
-        NRF_LOG_INFO("- SREQ\r\n");
+        NRF_LOG_INFO("- SREQ");
     }
-    if(0 != (rr & NRF_POWER_RESETREAS_LOCKUP_MASK  ))
+    if (0 != (rr & NRF_POWER_RESETREAS_LOCKUP_MASK  ))
     {
-        NRF_LOG_INFO("- LOCKUP\r\n");
+        NRF_LOG_INFO("- LOCKUP");
     }
-    if(0 != (rr & NRF_POWER_RESETREAS_OFF_MASK     ))
+    if (0 != (rr & NRF_POWER_RESETREAS_OFF_MASK     ))
     {
-        NRF_LOG_INFO("- OFF\r\n");
+        NRF_LOG_INFO("- OFF");
     }
-    if(0 != (rr & NRF_POWER_RESETREAS_LPCOMP_MASK  ))
+    if (0 != (rr & NRF_POWER_RESETREAS_LPCOMP_MASK  ))
     {
-        NRF_LOG_INFO("- LPCOMP\r\n");
+        NRF_LOG_INFO("- LPCOMP");
     }
-    if(0 != (rr & NRF_POWER_RESETREAS_DIF_MASK     ))
+    if (0 != (rr & NRF_POWER_RESETREAS_DIF_MASK     ))
     {
-        NRF_LOG_INFO("- DIF\r\n");
+        NRF_LOG_INFO("- DIF");
     }
-    if(0 != (rr & NRF_POWER_RESETREAS_NFC_MASK     ))
+    if (0 != (rr & NRF_POWER_RESETREAS_NFC_MASK     ))
     {
-        NRF_LOG_INFO("- NFC\r\n");
+        NRF_LOG_INFO("- NFC");
     }
-    if(0 != (rr & NRF_POWER_RESETREAS_VBUS_MASK    ))
+    if (0 != (rr & NRF_POWER_RESETREAS_VBUS_MASK    ))
     {
-        NRF_LOG_INFO("- VBUS\r\n");
+        NRF_LOG_INFO("- VBUS");
     }
 }
 
 int main(void)
 {
+    ret_code_t ret;
+    UNUSED_RETURN_VALUE(NRF_LOG_INIT(NULL));
+
     init_power_clock();
     init_bsp();
+    init_cli();
 
-
-    UNUSED_RETURN_VALUE(NRF_LOG_INIT(NULL));
-    NRF_LOG_INFO("Hello USB!\r\n");
+    NRF_LOG_INFO("USDB example started.");
+    if (NRF_DRV_USBD_ERRATA_ENABLE)
+    {
+        NRF_LOG_INFO("USB errata 104 %s", (uint32_t)(nrf_drv_usbd_errata_104() ? "enabled" : "disabled"));
+        NRF_LOG_INFO("USB errata 154 %s", (uint32_t)(nrf_drv_usbd_errata_154() ? "enabled" : "disabled"));
+    }
     log_resetreason();
     nrf_power_resetreas_clear(nrf_power_resetreas_get());
 
     /* USB work starts right here */
-    UNUSED_RETURN_VALUE(nrf_drv_usbd_init(usbd_event_handler));
+    ret = nrf_drv_usbd_init(usbd_event_handler);
+    APP_ERROR_CHECK(ret);
 
     /* Configure selected size of the packed on EP0 */
     nrf_drv_usbd_ep_max_packet_size_set(NRF_DRV_USBD_EPOUT0, EP0_MAXPACKETSIZE);
     nrf_drv_usbd_ep_max_packet_size_set(NRF_DRV_USBD_EPIN0, EP0_MAXPACKETSIZE);
 
     /* Configure LED and button */
-    bsp_board_leds_init();
+    bsp_board_init(BSP_INIT_LEDS);
     bsp_board_led_on(LED_RUNNING);
     bsp_board_led_on(LED_ACTIVE);
 
 
-    if(USBD_POWER_DETECTION)
+    if (USBD_POWER_DETECTION)
     {
         static const nrf_drv_power_usbevt_config_t config =
         {
             .handler = power_usb_event_handler
         };
-        nrf_drv_power_usbevt_init(&config);
+        ret = nrf_drv_power_usbevt_init(&config);
+        APP_ERROR_CHECK(ret);
     }
     else
     {
-        NRF_LOG_INFO("No USB power detection enabled\r\nStarting USB now\r\n");
+        NRF_LOG_INFO("No USB power detection enabled\r\nStarting USB now");
         nrf_delay_us(STARTUP_DELAY);
-        if(!nrf_drv_usbd_is_enabled())
+        if (!nrf_drv_usbd_is_enabled())
         {
             nrf_drv_usbd_enable();
+            ret = ep_configuration(0);
+            APP_ERROR_CHECK(ret);
         }
         /* Wait for regulator power up */
-        while(NRF_DRV_POWER_USB_STATE_CONNECTED
+        while (NRF_DRV_POWER_USB_STATE_CONNECTED
               ==
               nrf_drv_power_usbstatus_get())
         {
             /* Just waiting */
         }
 
-        if(NRF_DRV_POWER_USB_STATE_READY == nrf_drv_power_usbstatus_get())
+        if (NRF_DRV_POWER_USB_STATE_READY == nrf_drv_power_usbstatus_get())
         {
-            if(!nrf_drv_usbd_is_started())
+            if (!nrf_drv_usbd_is_started())
             {
                 nrf_drv_usbd_start(true);
             }
@@ -1054,38 +1257,58 @@ int main(void)
 
     while (true)
     {
-        if(m_system_off_req)
+        if (m_system_off_req)
         {
-            NRF_LOG_INFO("Going to system OFF\r\n");
+            NRF_LOG_INFO("Going to system OFF");
             NRF_LOG_FLUSH();
             bsp_board_led_off(LED_RUNNING);
             bsp_board_led_off(LED_ACTIVE);
             nrf_power_system_off();
         }
-        if(m_usbd_configured)
+        if (m_usbd_suspended != m_usbd_suspend_state_req)
         {
-            if (bsp_board_button_state_get(BTN_MOUSE_MOVE))
+            if (m_usbd_suspend_state_req)
             {
-                NRF_LOG_INFO("   TX pointer\r\n");
-                move_mouse_pointer();
+                m_usbd_suspended = nrf_drv_usbd_suspend();
+                if (m_usbd_suspended)
+                {
+                    bsp_board_leds_off();
+                }
+            }
+            else
+            {
+                m_usbd_suspended = false;
             }
         }
-        else if(USBD_POWER_DETECTION)
+
+        if (m_usbd_configured)
         {
-            NRF_LOG_FLUSH();
-            bsp_board_led_off(LED_RUNNING);
-            /* Even if we miss an event enabling USB,
-             * USB event would wake us up. */
-            __WFE();
-            /* Clear SEV flag if CPU was woken up by event */
-            __SEV();
-            __WFE();
-            bsp_board_led_on(LED_RUNNING);
+            if (m_send_flag)
+            {
+                if (m_usbd_suspended)
+                {
+                    if (m_usbd_rwu_enabled)
+                    {
+                        UNUSED_RETURN_VALUE(nrf_drv_usbd_wakeup_req());
+                    }
+                }
+                else
+                {
+                    NRF_LOG_INFO("   TX pointer");
+                    move_mouse_pointer();
+                }
+            }
         }
-        else
-        {
-            /* Nothing to do */
-        }
+
+        nrf_cli_process(&m_cli_uart);
         UNUSED_RETURN_VALUE(NRF_LOG_PROCESS());
+        bsp_board_led_off(LED_RUNNING);
+        /* Even if we miss an event enabling USB,
+         * USB event would wake us up. */
+        __WFE();
+        /* Clear SEV flag if CPU was woken up by event */
+        __SEV();
+        __WFE();
+        bsp_board_led_on(LED_RUNNING);
     }
 }

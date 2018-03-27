@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2012 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /**
  * This file contains the source code for a sample application using both Nordic Gazell proprietary
  * radio protocol and Bluetooth Low Energy radio protocol. In Bluetooth mode, it behave as a Heart
@@ -56,38 +55,23 @@
 #include "ble_app_gzll_common.h"
 #include "app_timer.h"
 #include "bsp.h"
+#include "nrf_pwr_mgmt.h"
 
-#define NRF_LOG_MODULE_NAME "APP"
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 
 // Store current mode
 volatile radio_mode_t running_mode = BLE;
 
-/**
- * @brief Function for the Power Management.
+
+/**@brief Function for initializing power management.
  */
-static void power_manage(void)
+static void power_management_init(void)
 {
-    if (running_mode == GAZELL)
-    {
-        // Use directly __WFE and __SEV macros since the SoftDevice is not available in proprietary
-        // mode.
-        // Wait for event.
-        __WFE();
-
-        // Clear Event Register.
-        __SEV();
-        __WFE();
-    }
-    else if (running_mode == BLE)
-    {
-        uint32_t err_code;
-
-        // Use SoftDevice API for power_management when in Bluetooth Mode.
-        err_code = sd_app_evt_wait();
-        APP_ERROR_CHECK(err_code);
-    }
+    ret_code_t err_code;
+    err_code = nrf_pwr_mgmt_init();
+    APP_ERROR_CHECK(err_code);
 }
 
 
@@ -103,14 +87,18 @@ int main(void)
     err_code = NRF_LOG_INIT(NULL);
     APP_ERROR_CHECK(err_code);
 
-    NRF_LOG_INFO("Multiprotocol application example\r\n");
-    NRF_LOG_INFO("BLE mode\r\n");
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
 
+    NRF_LOG_INFO("Multiprotocol application example started.");
+    NRF_LOG_INFO("BLE mode");
+
+    power_management_init();
     ble_stack_start();
     NRF_LOG_FLUSH();
 
     // Initialize timer module, making it use the scheduler.
-    APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_OP_QUEUE_SIZE, NULL);
+    err_code = app_timer_init();
+    APP_ERROR_CHECK(err_code);
 
     bsp_init_app();
     ble_hrs_app_start();
@@ -119,7 +107,7 @@ int main(void)
     for (;;)
     {
         NRF_LOG_FLUSH();
-        power_manage();
+        nrf_pwr_mgmt_run();
 
         if (bsp_button_is_pressed(BLE_BUTTON_ID))
         {
@@ -135,7 +123,7 @@ int main(void)
             previous_mode = running_mode;
             if (running_mode == GAZELL)
             {
-                NRF_LOG_INFO("Gazell mode\r\n");
+                NRF_LOG_INFO("Gazell mode");
 
                 // Stop all heart rate functionality before disabling the SoftDevice.
                 ble_hrs_app_stop();
@@ -151,7 +139,7 @@ int main(void)
             }
             else if (running_mode == BLE)
             {
-                NRF_LOG_INFO("BLE mode\r\n");
+                NRF_LOG_INFO("BLE mode");
 
                 // Disable Gazell.
                 gzll_app_stop();

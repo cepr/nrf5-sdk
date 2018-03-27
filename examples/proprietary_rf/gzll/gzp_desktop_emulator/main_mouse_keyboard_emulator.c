@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2012 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /**
  * This project can be used as a starting point for developing a nRF5x series
  * mouse or keyboard using Gazell for communicating with a legacy nRF24LU1
@@ -61,9 +60,10 @@
 #include "keyboard_emulator.h"
 #include "nrf_gzll_error.h"
 
-#define NRF_LOG_MODULE_NAME "APP"
+
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 
 /*****************************************************************************/
 /** @name Configuration                                                      */
@@ -145,12 +145,14 @@ int main()
 
 // lint -save -e514 Unusual use of a boolean expression (use of &= assignment).
 
-    UNUSED_VARIABLE(bsp_init(BSP_INIT_BUTTONS, 0, NULL));
+    UNUSED_VARIABLE(bsp_init(BSP_INIT_BUTTONS, NULL));
 
     err_code = NRF_LOG_INIT(NULL);
     APP_ERROR_CHECK(err_code);
 
-    NRF_LOG_INFO("Desktop emulator example\r\n");
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
+
+    NRF_LOG_INFO("Desktop emulator example");
     NRF_LOG_FLUSH();
 
     // Initialize and enable "mouse sensor"
@@ -164,8 +166,7 @@ int main()
     GAZELLE_ERROR_CODE_CHECK(result_value);
 
     // Ensure Gazell parameters are configured.
-    result_value = nrf_gzll_set_max_tx_attempts(150);
-    GAZELLE_ERROR_CODE_CHECK(result_value);
+    nrf_gzll_set_max_tx_attempts(150);
 
     result_value = nrf_gzll_set_device_channel_selection_policy(
         NRF_GZLLDE_DEVICE_CHANNEL_SELECTION_POLICY);
@@ -253,11 +254,11 @@ static void read_mouse_and_send(void)
                                                            NRFR_MOUSE_MOV_PACKET_LENGTH);
             if (mouse_send_ok)
             {
-                NRF_LOG_INFO("Mouse sent OK\r\n");
+                NRF_LOG_INFO("Mouse sent OK");
             }
             else
             {
-                NRF_LOG_INFO("Mouse sent FAILED\r\n");
+                NRF_LOG_INFO("Mouse sent FAILED");
             }
 
             NRF_LOG_FLUSH();
@@ -319,17 +320,17 @@ static void read_keyboard_and_send(void)
 
         if (keyboard_send_ok)
         {
-            NRF_LOG_INFO("Keyboard sent OK\r\n");
+            NRF_LOG_INFO("Keyboard sent OK");
         }
         else
         {
-            NRF_LOG_INFO("Keyboard sent FAILED\r\n");
+            NRF_LOG_INFO("Keyboard sent FAILED");
         }
 
         if (keyboard_send_ok)
         {
             // Wait until button is released.
-            while(bsp_button_is_pressed(SEND_KEYBOARD_DATA_BUTTON_ID))
+            while (bsp_button_is_pressed(SEND_KEYBOARD_DATA_BUTTON_ID))
             {
             }
 
@@ -383,7 +384,7 @@ static void error_report(void)
     if (~system_addr_received & prev_system_addr_received)
     {
         prev_system_addr_received = false;
-        NRF_LOG_INFO("System address not received\r\n");
+        NRF_LOG_INFO("System address not received");
     }
     else if (system_addr_received)
     {
@@ -393,7 +394,7 @@ static void error_report(void)
     if (~host_id_received & prev_host_id_received)
     {
         prev_host_id_received = false;
-        NRF_LOG_INFO("Host ID not received\r\n");
+        NRF_LOG_INFO("Host ID not received");
     }
     else if (host_id_received)
     {
@@ -403,7 +404,7 @@ static void error_report(void)
     if (~dyn_key_ok & prev_dyn_key_ok)
     {
         prev_dyn_key_ok = false;
-        NRF_LOG_INFO("Dyn Key not received\r\n");
+        NRF_LOG_INFO("Dyn Key not received");
     }
     else if (dyn_key_ok)
     {

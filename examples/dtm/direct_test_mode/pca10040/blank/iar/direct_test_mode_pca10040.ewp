@@ -176,21 +176,13 @@
         </option>
         <option>
           <name>CCDefines</name>
-          <state>NRF52832</state>
-          <state>NRF52</state>
           <state>BOARD_PCA10040</state>
-          <state>NRF52_PAN_12</state>
-          <state>NRF52_PAN_15</state>
-          <state>NRF52_PAN_20</state>
-          <state>NRF52_PAN_31</state>
-          <state>NRF52_PAN_36</state>
-          <state>NRF52_PAN_51</state>
-          <state>CONFIG_GPIO_AS_PINRESET</state>
-          <state>NRF52_PAN_54</state>
-          <state>NRF52_PAN_55</state>
-          <state>NRF52_PAN_58</state>
-          <state>NRF52_PAN_64</state>
           <state>BSP_DEFINES_ONLY</state>
+          <state>CONFIG_GPIO_AS_PINRESET</state>
+          <state>FLOAT_ABI_HARD</state>
+          <state>NRF52</state>
+          <state>NRF52832_XXAA</state>
+          <state>NRF52_PAN_74</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -255,7 +247,7 @@
         </option>
         <option>
           <name>CCDebugInfo</name>
-          <state></state>
+          <state>1</state>
         </option>
         <option>
           <name>IEndianMode</name>
@@ -319,21 +311,29 @@
         </option>
         <option>
           <name>CCIncludePath2</name>
-          <state>$PROJ_DIR$\..\..\..\config\direct_test_mode_pca10040</state>
           <state>$PROJ_DIR$\..\..\..\config</state>
           <state>$PROJ_DIR$\..\..\..\..\..\..\components</state>
           <state>$PROJ_DIR$\..\..\..\..\..\..\components\ble\ble_dtm</state>
           <state>$PROJ_DIR$\..\..\..\..\..\..\components\boards</state>
-          <state>$PROJ_DIR$\..\..\..\..\..\..\components\device</state>
-          <state>$PROJ_DIR$\..\..\..\..\..\..\components\drivers_nrf\hal</state>
           <state>$PROJ_DIR$\..\..\..\..\..\..\components\drivers_nrf\nrf_soc_nosd</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\balloc</state>
           <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\bsp</state>
-          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\log</state>
-          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\log\src</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\experimental_log</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\experimental_log\src</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\experimental_memobj</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\experimental_section_vars</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\fifo</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\strerror</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\uart</state>
           <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\util</state>
-          <state>$PROJ_DIR$\..\..\..\..\..\..\components\toolchain</state>
           <state>$PROJ_DIR$\..\..\..\..\..\..\components\toolchain\cmsis\include</state>
           <state>$PROJ_DIR$\..\..\..</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\integration\nrfx</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\integration\nrfx\legacy</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\modules\nrfx</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\modules\nrfx\drivers\include</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\modules\nrfx\hal</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\modules\nrfx\mdk</state>
           <state>$PROJ_DIR$\..\config</state>
         </option>
         <option>
@@ -492,21 +492,13 @@
         </option>
         <option>
       <name>ADefines</name>
-          <state>NRF52832</state>
-          <state>NRF52</state>
           <state>BOARD_PCA10040</state>
-          <state>NRF52_PAN_12</state>
-          <state>NRF52_PAN_15</state>
-          <state>NRF52_PAN_20</state>
-          <state>NRF52_PAN_31</state>
-          <state>NRF52_PAN_36</state>
-          <state>NRF52_PAN_51</state>
-          <state>CONFIG_GPIO_AS_PINRESET</state>
-          <state>NRF52_PAN_54</state>
-          <state>NRF52_PAN_55</state>
-          <state>NRF52_PAN_58</state>
-          <state>NRF52_PAN_64</state>
           <state>BSP_DEFINES_ONLY</state>
+          <state>CONFIG_GPIO_AS_PINRESET</state>
+          <state>FLOAT_ABI_HARD</state>
+          <state>NRF52</state>
+          <state>NRF52832_XXAA</state>
+          <state>NRF52_PAN_74</state>
         </option>
         <option>
           <name>AList</name>
@@ -602,21 +594,29 @@
         </option>
         <option>
           <name>AUserIncludes</name>
-          <state>$PROJ_DIR$\..\..\..\config\direct_test_mode_pca10040</state>
           <state>$PROJ_DIR$\..\..\..\config</state>
           <state>$PROJ_DIR$\..\..\..\..\..\..\components</state>
           <state>$PROJ_DIR$\..\..\..\..\..\..\components\ble\ble_dtm</state>
           <state>$PROJ_DIR$\..\..\..\..\..\..\components\boards</state>
-          <state>$PROJ_DIR$\..\..\..\..\..\..\components\device</state>
-          <state>$PROJ_DIR$\..\..\..\..\..\..\components\drivers_nrf\hal</state>
           <state>$PROJ_DIR$\..\..\..\..\..\..\components\drivers_nrf\nrf_soc_nosd</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\balloc</state>
           <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\bsp</state>
-          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\log</state>
-          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\log\src</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\experimental_log</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\experimental_log\src</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\experimental_memobj</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\experimental_section_vars</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\fifo</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\strerror</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\uart</state>
           <state>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\util</state>
-          <state>$PROJ_DIR$\..\..\..\..\..\..\components\toolchain</state>
           <state>$PROJ_DIR$\..\..\..\..\..\..\components\toolchain\cmsis\include</state>
           <state>$PROJ_DIR$\..\..\..</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\integration\nrfx</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\integration\nrfx\legacy</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\modules\nrfx</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\modules\nrfx\drivers\include</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\modules\nrfx\hal</state>
+          <state>$PROJ_DIR$\..\..\..\..\..\..\modules\nrfx\mdk</state>
           <state>$PROJ_DIR$\..\config</state>
         </option>
         <option>
@@ -1001,19 +1001,30 @@
       <data/>
     </settings>
   </configuration>  <group>
-  <name>Device</name>    <file>
-    <name>$PROJ_DIR$\..\..\..\..\..\..\components\toolchain\iar\iar_startup_nrf52.s</name>    </file>    <file>
-    <name>$PROJ_DIR$\..\..\..\..\..\..\components\toolchain\system_nrf52.c</name>    </file>  </group>  <group>
+  <name>nRF_Libraries</name>    <file>
+    <name>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\util\app_error.c</name>    </file>    <file>
+    <name>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\util\app_error_handler_iar.c</name>    </file>    <file>
+    <name>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\util\app_error_weak.c</name>    </file>    <file>
+    <name>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\fifo\app_fifo.c</name>    </file>    <file>
+    <name>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\uart\app_uart_fifo.c</name>    </file>    <file>
+    <name>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\util\app_util_platform.c</name>    </file>    <file>
+    <name>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\util\nrf_assert.c</name>    </file>    <file>
+    <name>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\strerror\nrf_strerror.c</name>    </file>  </group>  <group>
+  <name>Board Definition</name>    <file>
+    <name>$PROJ_DIR$\..\..\..\..\..\..\components\boards\boards.c</name>    </file>  </group>  <group>
+  <name>nRF_Drivers</name>    <file>
+    <name>$PROJ_DIR$\..\..\..\..\..\..\integration\nrfx\legacy\nrf_drv_uart.c</name>    </file>    <file>
+    <name>$PROJ_DIR$\..\..\..\..\..\..\modules\nrfx\drivers\src\prs\nrfx_prs.c</name>    </file>    <file>
+    <name>$PROJ_DIR$\..\..\..\..\..\..\modules\nrfx\drivers\src\nrfx_uart.c</name>    </file>    <file>
+    <name>$PROJ_DIR$\..\..\..\..\..\..\modules\nrfx\drivers\src\nrfx_uarte.c</name>    </file>  </group>  <group>
   <name>Application</name>    <file>
     <name>$PROJ_DIR$\..\..\..\main.c</name>    </file>    <file>
     <name>$PROJ_DIR$\..\config\sdk_config.h</name>    </file>  </group>  <group>
-  <name>nRF_Libraries</name>    <file>
-    <name>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\util\app_error.c</name>    </file>    <file>
-    <name>$PROJ_DIR$\..\..\..\..\..\..\components\libraries\util\app_error_weak.c</name>    </file>  </group>  <group>
   <name>nRF_BLE</name>    <file>
     <name>$PROJ_DIR$\..\..\..\..\..\..\components\ble\ble_dtm\ble_dtm.c</name>    </file>    <file>
     <name>$PROJ_DIR$\..\..\..\..\..\..\components\ble\ble_dtm\ble_dtm_hw_nrf52.c</name>    </file>  </group>  <group>
-  <name>Board Definition</name>    <file>
-    <name>$PROJ_DIR$\..\..\..\..\..\..\components\boards\boards.c</name>    </file>  </group></project>
+  <name>None</name>    <file>
+    <name>$PROJ_DIR$\..\..\..\..\..\..\modules\nrfx\mdk\iar_startup_nrf52.s</name>    </file>    <file>
+    <name>$PROJ_DIR$\..\..\..\..\..\..\modules\nrfx\mdk\system_nrf52.c</name>    </file>  </group></project>
 
 

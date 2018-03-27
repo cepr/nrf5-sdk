@@ -11,18 +11,23 @@ MEMORY
 
 SECTIONS
 {
-  .fs_data :
+}
+
+SECTIONS
+{
+  . = ALIGN(4);
+  .mem_section_dummy_ram :
   {
-    PROVIDE(__start_fs_data = .);
-    KEEP(*(.fs_data))
-    PROVIDE(__stop_fs_data = .);
-  } > RAM
-  .pwr_mgmt_data :
-  {
-    PROVIDE(__start_pwr_mgmt_data = .);
-    KEEP(*(.pwr_mgmt_data))
-    PROVIDE(__stop_pwr_mgmt_data = .);
-  } > RAM
+  }
+
 } INSERT AFTER .data;
 
-INCLUDE "nrf5x_common.ld"
+SECTIONS
+{
+  .mem_section_dummy_rom :
+  {
+  }
+
+} INSERT AFTER .text
+
+INCLUDE "nrf_common.ld"

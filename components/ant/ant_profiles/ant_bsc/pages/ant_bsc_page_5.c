@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,14 +37,13 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #include "sdk_common.h"
 #if NRF_MODULE_ENABLED(ANT_BSC)
 
 #include "ant_bsc_page_5.h"
 #include "ant_bsc_utils.h"
 
-#define NRF_LOG_MODULE_NAME "ANT_BCS_PAGE_5"
+#define NRF_LOG_MODULE_NAME ant_bcs_page_5
 #if ANT_BSC_PAGE_5_LOG_ENABLED
 #define NRF_LOG_LEVEL       ANT_BSC_PAGE_5_LOG_LEVEL
 #define NRF_LOG_INFO_COLOR  ANT_BSC_PAGE_5_INFO_COLOR
@@ -52,6 +51,7 @@
 #define NRF_LOG_LEVEL       0
 #endif // ANT_BSC_PAGE_5_LOG_ENABLED
 #include "nrf_log.h"
+NRF_LOG_MODULE_REGISTER();
 
 /**@brief BSC profile page 5 bitfields definitions. */
 #define ANT_BSC_STOP_IND_MASK       0x01
@@ -68,11 +68,11 @@ static void page5_data_log(ant_bsc_page5_data_t const * p_page_data)
 {
     if (p_page_data->stop_indicator)
     {
-        NRF_LOG_INFO("Bicycle stopped.\r\n");
+        NRF_LOG_INFO("Bicycle stopped.");
     }
     else
     {
-        NRF_LOG_INFO("Bicycle moving.\r\n");
+        NRF_LOG_INFO("Bicycle moving.");
     }
 }
 

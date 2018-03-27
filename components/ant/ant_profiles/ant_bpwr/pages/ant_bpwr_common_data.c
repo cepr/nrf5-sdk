@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,14 +37,13 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #include "sdk_common.h"
 #if NRF_MODULE_ENABLED(ANT_BPWR)
 
 #include "ant_bpwr_common_data.h"
 #include "ant_bpwr_utils.h"
 
-#define NRF_LOG_MODULE_NAME "ANT_BPWR_COMMON"
+#define NRF_LOG_MODULE_NAME ant_bpwr_common
 #if ANT_BPWR_COMMON_LOG_ENABLED
 #define NRF_LOG_LEVEL       ANT_BPWR_COMMON_LOG_LEVEL
 #define NRF_LOG_INFO_COLOR  ANT_BPWR_COMMON_INFO_COLOR
@@ -52,6 +51,7 @@
 #define NRF_LOG_LEVEL       0
 #endif // ANT_BPWR_COMMON_LOG_ENABLED
 #include "nrf_log.h"
+NRF_LOG_MODULE_REGISTER();
 
 /**@brief BPWR common page data layout structure. */
 typedef struct

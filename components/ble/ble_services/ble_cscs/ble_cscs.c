@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2012 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,22 +37,22 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /* Attention!
-*  To maintain compliance with Nordic Semiconductor ASA’s Bluetooth profile
-*  qualification listings, this section of source code must not be modified.
-*/
+ * To maintain compliance with Nordic Semiconductor ASA's Bluetooth profile
+ * qualification listings, this section of source code must not be modified.
+ */
 
 #include "ble_cscs.h"
 #include <string.h>
 #include "nordic_common.h"
-#include "ble_l2cap.h"
+#include "ble.h"
+#include "ble_err.h"
 #include "ble_srv_common.h"
 #include "app_util.h"
 
-#define OPCODE_LENGTH 1                                                    /**< Length of opcode inside Cycling Speed and Cadence Measurement packet. */
-#define HANDLE_LENGTH 2                                                    /**< Length of handle inside Cycling Speed and Cadence Measurement packet. */
-#define MAX_CSCM_LEN  (BLE_L2CAP_MTU_DEF - OPCODE_LENGTH - HANDLE_LENGTH)  /**< Maximum size of a transmitted Cycling Speed and Cadence Measurement. */
+#define OPCODE_LENGTH 1                                                             /**< Length of opcode inside Cycling Speed and Cadence Measurement packet. */
+#define HANDLE_LENGTH 2                                                             /**< Length of handle inside Cycling Speed and Cadence Measurement packet. */
+#define MAX_CSCM_LEN  (BLE_GATT_ATT_MTU_DEFAULT - OPCODE_LENGTH - HANDLE_LENGTH)    /**< Maximum size of a transmitted Cycling Speed and Cadence Measurement. */
 
 // Cycling Speed and Cadence Measurement flag bits
 #define CSC_MEAS_FLAG_MASK_WHEEL_REV_DATA_PRESENT (0x01 << 0)  /**< Wheel revolution data present flag bit. */
@@ -64,7 +64,7 @@
  * @param[in]   p_cscs      Cycling Speed and Cadence Service structure.
  * @param[in]   p_ble_evt   Event received from the BLE stack.
  */
-static void on_connect(ble_cscs_t * p_cscs, ble_evt_t * p_ble_evt)
+static void on_connect(ble_cscs_t * p_cscs, ble_evt_t const * p_ble_evt)
 {
     p_cscs->conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
 }
@@ -75,7 +75,7 @@ static void on_connect(ble_cscs_t * p_cscs, ble_evt_t * p_ble_evt)
  * @param[in]   p_cscs      Cycling Speed and Cadence Service structure.
  * @param[in]   p_ble_evt   Event received from the BLE stack.
  */
-static void on_disconnect(ble_cscs_t * p_cscs, ble_evt_t * p_ble_evt)
+static void on_disconnect(ble_cscs_t * p_cscs, ble_evt_t const * p_ble_evt)
 {
     UNUSED_PARAMETER(p_ble_evt);
     p_cscs->conn_handle = BLE_CONN_HANDLE_INVALID;
@@ -87,7 +87,7 @@ static void on_disconnect(ble_cscs_t * p_cscs, ble_evt_t * p_ble_evt)
  * @param[in]   p_cscs        Cycling Speed and Cadence Service structure.
  * @param[in]   p_evt_write   Write event received from the BLE stack.
  */
-static void on_meas_cccd_write(ble_cscs_t * p_cscs, ble_gatts_evt_write_t * p_evt_write)
+static void on_meas_cccd_write(ble_cscs_t * p_cscs, ble_gatts_evt_write_t const * p_evt_write)
 {
     if (p_evt_write->len == 2)
     {
@@ -116,9 +116,9 @@ static void on_meas_cccd_write(ble_cscs_t * p_cscs, ble_gatts_evt_write_t * p_ev
  * @param[in]   p_cscs      Cycling Speed and Cadence Service structure.
  * @param[in]   p_ble_evt   Event received from the BLE stack.
  */
-static void on_write(ble_cscs_t * p_cscs, ble_evt_t * p_ble_evt)
+static void on_write(ble_cscs_t * p_cscs, ble_evt_t const * p_ble_evt)
 {
-    ble_gatts_evt_write_t * p_evt_write = &p_ble_evt->evt.gatts_evt.params.write;
+    ble_gatts_evt_write_t const * p_evt_write = &p_ble_evt->evt.gatts_evt.params.write;
 
     if (p_evt_write->handle == p_cscs->meas_handles.cccd_handle)
     {
@@ -127,8 +127,16 @@ static void on_write(ble_cscs_t * p_cscs, ble_evt_t * p_ble_evt)
 }
 
 
-void ble_cscs_on_ble_evt(ble_cscs_t * p_cscs, ble_evt_t * p_ble_evt)
+void ble_cscs_on_ble_evt(ble_evt_t const * p_ble_evt, void * p_context)
 {
+    ble_cscs_t * p_cscs = (ble_cscs_t *)p_context;
+
+    if (p_cscs == NULL || p_ble_evt == NULL)
+    {
+        return;
+    }
+
+
     ble_sc_ctrlpt_on_ble_evt(&(p_cscs->ctrl_pt), p_ble_evt);
 
     switch (p_ble_evt->header.evt_id)
@@ -203,14 +211,14 @@ static uint8_t csc_measurement_encode(ble_cscs_t      * p_cscs,
  *
  * @return      NRF_SUCCESS on success, otherwise an error code.
  */
-static uint32_t csc_measurement_char_add(ble_cscs_t * p_cscs, const ble_cscs_init_t * p_cscs_init)
+static uint32_t csc_measurement_char_add(ble_cscs_t * p_cscs, ble_cscs_init_t const * p_cscs_init)
 {
     ble_gatts_char_md_t char_md;
     ble_gatts_attr_md_t cccd_md;
     ble_gatts_attr_t    attr_char_value;
     ble_uuid_t          ble_uuid;
     ble_gatts_attr_md_t attr_md;
-    ble_cscs_meas_t     initial_scm;
+    ble_cscs_meas_t     initial_scm = {0};
     uint8_t             encoded_scm[MAX_CSCM_LEN];
     memset(&cccd_md, 0, sizeof(cccd_md));
 
@@ -262,7 +270,7 @@ static uint32_t csc_measurement_char_add(ble_cscs_t * p_cscs, const ble_cscs_ini
  *
  * @return      NRF_SUCCESS on success, otherwise an error code.
  */
-static uint32_t csc_feature_char_add(ble_cscs_t * p_cscs, const ble_cscs_init_t * p_cscs_init)
+static uint32_t csc_feature_char_add(ble_cscs_t * p_cscs, ble_cscs_init_t const * p_cscs_init)
 {
     ble_gatts_char_md_t char_md;
     ble_gatts_attr_t    attr_char_value;
@@ -317,7 +325,7 @@ static uint32_t csc_feature_char_add(ble_cscs_t * p_cscs, const ble_cscs_init_t 
  *
  * @return      NRF_SUCCESS on success, otherwise an error code.
  */
-static uint32_t csc_sensor_loc_char_add(ble_cscs_t * p_cscs, const ble_cscs_init_t * p_cscs_init)
+static uint32_t csc_sensor_loc_char_add(ble_cscs_t * p_cscs, ble_cscs_init_t const * p_cscs_init)
 {
     ble_gatts_char_md_t char_md;
     ble_gatts_attr_t    attr_char_value;
@@ -368,8 +376,13 @@ static uint32_t csc_sensor_loc_char_add(ble_cscs_t * p_cscs, const ble_cscs_init
 }
 
 
-uint32_t ble_cscs_init(ble_cscs_t * p_cscs, const ble_cscs_init_t * p_cscs_init)
+uint32_t ble_cscs_init(ble_cscs_t * p_cscs, ble_cscs_init_t const * p_cscs_init)
 {
+    if (p_cscs == NULL || p_cscs_init == NULL)
+    {
+        return NRF_ERROR_NULL;
+    }
+
     uint32_t             err_code;
     ble_uuid_t           ble_uuid;
     ble_cs_ctrlpt_init_t sc_ctrlpt_init;
@@ -435,6 +448,11 @@ uint32_t ble_cscs_init(ble_cscs_t * p_cscs, const ble_cscs_init_t * p_cscs_init)
 
 uint32_t ble_cscs_measurement_send(ble_cscs_t * p_cscs, ble_cscs_meas_t * p_measurement)
 {
+    if (p_cscs == NULL || p_measurement == NULL)
+    {
+        return NRF_ERROR_NULL;
+    }
+
     uint32_t err_code;
 
     // Send value if connected and notifying

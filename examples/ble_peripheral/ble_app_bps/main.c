@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  *
  * @defgroup ble_sdk_app_bps_main main.c
@@ -55,8 +54,8 @@
 #include "nordic_common.h"
 #include "nrf.h"
 #include "app_error.h"
-#include "nrf_gpio.h"
 #include "ble.h"
+#include "ble_err.h"
 #include "ble_hci.h"
 #include "ble_srv_common.h"
 #include "ble_advdata.h"
@@ -66,97 +65,88 @@
 #include "ble_dis.h"
 #include "ble_conn_params.h"
 #include "sensorsim.h"
-#include "softdevice_handler.h"
+#include "nrf_sdh.h"
+#include "nrf_sdh_soc.h"
+#include "nrf_sdh_ble.h"
 #include "app_timer.h"
 #include "peer_manager.h"
-#include "bsp.h"
 #include "bsp_btn_ble.h"
 #include "fds.h"
-#include "fstorage.h"
 #include "ble_conn_state.h"
+#include "nrf_ble_gatt.h"
+#include "nrf_ble_qwr.h"
+#include "nrf_pwr_mgmt.h"
 
-#define NRF_LOG_MODULE_NAME "APP"
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 
-#if (NRF_SD_BLE_API_VERSION == 3)
-#define NRF_BLE_MAX_MTU_SIZE            GATT_MTU_SIZE_DEFAULT                       /**< MTU size used in the softdevice enabling and to reply to a BLE_GATTS_EVT_EXCHANGE_MTU_REQUEST event. */
-#endif
 
-#define IS_SRVC_CHANGED_CHARACT_PRESENT 0                                           /**< Include or not the service_changed characteristic. if not enabled, the server's database cannot be changed for the lifetime of the device*/
+#define DEVICE_NAME                     "Nordic_BPS"                            /**< Name of device. Will be included in the advertising data. */
+#define MANUFACTURER_NAME               "NordicSemiconductor"                   /**< Manufacturer. Will be passed to Device Information Service. */
+#define MODEL_NUM                       "NS-BPS-EXAMPLE"                        /**< Model number. Will be passed to Device Information Service. */
+#define MANUFACTURER_ID                 0x1122334455                            /**< Manufacturer ID, part of System ID. Will be passed to Device Information Service. */
+#define ORG_UNIQUE_ID                   0x667788                                /**< Organizational Unique ID, part of System ID. Will be passed to Device Information Service. */
 
-#define CENTRAL_LINK_COUNT              0                                           /**< Number of central links used by the application. When changing this number remember to adjust the RAM settings*/
-#define PERIPHERAL_LINK_COUNT           1                                           /**< Number of peripheral links used by the application. When changing this number remember to adjust the RAM settings*/
+#define APP_BLE_OBSERVER_PRIO           3                                       /**< Application's BLE observer priority. You shoulnd't need to modify this value. */
+#define APP_BLE_CONN_CFG_TAG            1                                       /**< A tag identifying the SoftDevice BLE configuration. */
 
-#define SEND_MEAS_BUTTON_ID             0                                           /**< Button used for sending a measurement. */
+#define APP_ADV_INTERVAL                40                                      /**< The advertising interval (in units of 0.625 ms. This value corresponds to 25 ms). */
 
-#define DEVICE_NAME                     "Nordic_BPS"                                /**< Name of device. Will be included in the advertising data. */
-#define MANUFACTURER_NAME               "NordicSemiconductor"                       /**< Manufacturer. Will be passed to Device Information Service. */
-#define MODEL_NUM                       "NS-BPS-EXAMPLE"                            /**< Model number. Will be passed to Device Information Service. */
-#define MANUFACTURER_ID                 0x1122334455                                /**< Manufacturer ID, part of System ID. Will be passed to Device Information Service. */
-#define ORG_UNIQUE_ID                   0x667788                                    /**< Organizational Unique ID, part of System ID. Will be passed to Device Information Service. */
+#define APP_ADV_DURATION                18000                                   /**< The advertising duration (180 seconds) in units of 10 milliseconds. */
 
-#define APP_ADV_INTERVAL                40                                          /**< The advertising interval (in units of 0.625 ms. This value corresponds to 25 ms). */
-#define APP_ADV_TIMEOUT_IN_SECONDS      180                                         /**< The advertising timeout in units of seconds. */
+#define NUM_SIM_MEAS_VALUES             4                                       /**< Number of simulated measurements to cycle through. */
 
-#define APP_TIMER_PRESCALER             0                                           /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_OP_QUEUE_SIZE         4                                           /**< Size of timer operation queues. */
+#define SIM_MEAS_1_SYSTOLIC             117                                     /**< Simulated measurement value for systolic pressure. */
+#define SIM_MEAS_1_DIASTOLIC            76                                      /**< Simulated measurement value for diastolic pressure. */
+#define SIM_MEAS_1_MEAN_AP              103                                     /**< Simulated measurement value for mean arterial pressure. */
+#define SIM_MEAS_1_PULSE_RATE           60                                      /**< Simulated measurement value for pulse rate. */
 
-#define NUM_SIM_MEAS_VALUES             4                                           /**< Number of simulated measurements to cycle through. */
+#define SIM_MEAS_2_SYSTOLIC             121                                     /**< Simulated measurement value for systolic pressure. */
+#define SIM_MEAS_2_DIASTOLIC            81                                      /**< Simulated measurement value for diastolic pressure. */
+#define SIM_MEAS_2_MEAN_AP              106                                     /**< Simulated measurement value for mean arterial pressure. */
+#define SIM_MEAS_2_PULSE_RATE           72                                      /**< Simulated measurement value for pulse rate. */
 
-#define SIM_MEAS_1_SYSTOLIC             117                                         /**< Simulated measurement value for systolic pressure. */
-#define SIM_MEAS_1_DIASTOLIC            76                                          /**< Simulated measurement value for diastolic pressure. */
-#define SIM_MEAS_1_MEAN_AP              103                                         /**< Simulated measurement value for mean arterial pressure. */
-#define SIM_MEAS_1_PULSE_RATE           60                                          /**< Simulated measurement value for pulse rate. */
+#define SIM_MEAS_3_SYSTOLIC             138                                     /**< Simulated measurement value for systolic pressure. */
+#define SIM_MEAS_3_DIASTOLIC            88                                      /**< Simulated measurement value for diastolic pressure. */
+#define SIM_MEAS_3_MEAN_AP              120                                     /**< Simulated measurement value for mean arterial pressure. */
+#define SIM_MEAS_3_PULSE_RATE           105                                     /**< Simulated measurement value for pulse rate. */
 
-#define SIM_MEAS_2_SYSTOLIC             121                                         /**< Simulated measurement value for systolic pressure. */
-#define SIM_MEAS_2_DIASTOLIC            81                                          /**< Simulated measurement value for diastolic pressure. */
-#define SIM_MEAS_2_MEAN_AP              106                                         /**< Simulated measurement value for mean arterial pressure. */
-#define SIM_MEAS_2_PULSE_RATE           72                                          /**< Simulated measurement value for pulse rate. */
+#define SIM_MEAS_4_SYSTOLIC             145                                     /**< Simulated measurement value for systolic pressure. */
+#define SIM_MEAS_4_DIASTOLIC            100                                     /**< Simulated measurement value for diastolic pressure. */
+#define SIM_MEAS_4_MEAN_AP              131                                     /**< Simulated measurement value for mean arterial pressure. */
+#define SIM_MEAS_4_PULSE_RATE           125                                     /**< Simulated measurement value for pulse rate. */
 
-#define SIM_MEAS_3_SYSTOLIC             138                                         /**< Simulated measurement value for systolic pressure. */
-#define SIM_MEAS_3_DIASTOLIC            88                                          /**< Simulated measurement value for diastolic pressure. */
-#define SIM_MEAS_3_MEAN_AP              120                                         /**< Simulated measurement value for mean arterial pressure. */
-#define SIM_MEAS_3_PULSE_RATE           105                                         /**< Simulated measurement value for pulse rate. */
+#define BATTERY_LEVEL_MEAS_INTERVAL     APP_TIMER_TICKS(2000)                   /**< Battery level measurement interval (ticks). */
+#define MIN_BATTERY_LEVEL               81                                      /**< Minimum battery level as returned by the simulated measurement function. */
+#define MAX_BATTERY_LEVEL               100                                     /**< Maximum battery level as returned by the simulated measurement function. */
+#define BATTERY_LEVEL_INCREMENT         1                                       /**< Value by which the battery level is incremented/decremented for each call to the simulated measurement function. */
 
-#define SIM_MEAS_4_SYSTOLIC             145                                         /**< Simulated measurement value for systolic pressure. */
-#define SIM_MEAS_4_DIASTOLIC            100                                         /**< Simulated measurement value for diastolic pressure. */
-#define SIM_MEAS_4_MEAN_AP              131                                         /**< Simulated measurement value for mean arterial pressure. */
-#define SIM_MEAS_4_PULSE_RATE           125                                         /**< Simulated measurement value for pulse rate. */
+#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(500, UNIT_1_25_MS)        /**< Minimum acceptable connection interval (0.5 seconds). */
+#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(1000, UNIT_1_25_MS)       /**< Maximum acceptable connection interval (1 second). */
+#define SLAVE_LATENCY                   0                                       /**< Slave latency. */
+#define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(4000, UNIT_10_MS)         /**< Connection supervisory timeout (4 seconds). */
 
-#define BATTERY_LEVEL_MEAS_INTERVAL     APP_TIMER_TICKS(2000, APP_TIMER_PRESCALER)  /**< Battery level measurement interval (ticks). */
-#define MIN_BATTERY_LEVEL               81                                          /**< Minimum battery level as returned by the simulated measurement function. */
-#define MAX_BATTERY_LEVEL               100                                         /**< Maximum battery level as returned by the simulated measurement function. */
-#define BATTERY_LEVEL_INCREMENT         1                                           /**< Value by which the battery level is incremented/decremented for each call to the simulated measurement function. */
+#define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000)                   /**< Time from initiating event (connect or start of indication) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
+#define NEXT_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(30000)                  /**< Time between each call to sd_ble_gap_conn_param_update after the first call (30 seconds). */
+#define MAX_CONN_PARAMS_UPDATE_COUNT    3                                       /**< Number of attempts before giving up the connection parameter negotiation. */
 
-#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(500, UNIT_1_25_MS)            /**< Minimum acceptable connection interval (0.5 seconds). */
-#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(1000, UNIT_1_25_MS)           /**< Maximum acceptable connection interval (1 second). */
-#define SLAVE_LATENCY                   0                                           /**< Slave latency. */
-#define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(4000, UNIT_10_MS)             /**< Connection supervisory timeout (4 seconds). */
+#define SEC_PARAM_BOND                  1                                       /**< Perform bonding. */
+#define SEC_PARAM_MITM                  0                                       /**< Man In The Middle protection not required. */
+#define SEC_PARAM_LESC                  0                                       /**< LE Secure Connections not enabled. */
+#define SEC_PARAM_KEYPRESS              0                                       /**< Keypress notifications not enabled. */
+#define SEC_PARAM_IO_CAPABILITIES       BLE_GAP_IO_CAPS_NONE                    /**< No I/O capabilities. */
+#define SEC_PARAM_OOB                   0                                       /**< Out Of Band data not available. */
+#define SEC_PARAM_MIN_KEY_SIZE          7                                       /**< Minimum encryption key size. */
+#define SEC_PARAM_MAX_KEY_SIZE          16                                      /**< Maximum encryption key size. */
 
-#define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000, APP_TIMER_PRESCALER)  /**< Time from initiating event (connect or start of indication) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
-#define NEXT_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(30000, APP_TIMER_PRESCALER) /**< Time between each call to sd_ble_gap_conn_param_update after the first call (30 seconds). */
-#define MAX_CONN_PARAMS_UPDATE_COUNT    3                                           /**< Number of attempts before giving up the connection parameter negotiation. */
+#define DEAD_BEEF                       0xDEADBEEF                              /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 
-#define BUTTON_DETECTION_DELAY          APP_TIMER_TICKS(50, APP_TIMER_PRESCALER)    /**< Delay from a GPIOTE event until a button is reported as pushed (in number of timer ticks). */
-
-#define SEC_PARAM_BOND                  1                                           /**< Perform bonding. */
-#define SEC_PARAM_MITM                  0                                           /**< Man In The Middle protection not required. */
-#define SEC_PARAM_LESC                  0                                           /**< LE Secure Connections not enabled. */
-#define SEC_PARAM_KEYPRESS              0                                           /**< Keypress notifications not enabled. */
-#define SEC_PARAM_IO_CAPABILITIES       BLE_GAP_IO_CAPS_NONE                        /**< No I/O capabilities. */
-#define SEC_PARAM_OOB                   0                                           /**< Out Of Band data not available. */
-#define SEC_PARAM_MIN_KEY_SIZE          7                                           /**< Minimum encryption key size. */
-#define SEC_PARAM_MAX_KEY_SIZE          16                                          /**< Maximum encryption key size. */
-
-#define DEAD_BEEF                       0xDEADBEEF                                  /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
-
-#define APP_FEATURE_NOT_SUPPORTED      BLE_GATT_STATUS_ATTERR_APP_BEGIN + 2         /**< Reply when unsupported features are requested. */
 
 /**@brief Structure for a simulated blood pressure measurment. An instance of this struct is
           filled out before sending a notification to the peer with ble_bps_measurement_send.
  */
-typedef struct bps_meas_sim_value_s
+typedef struct
 {
     ieee_float16_t systolic;
     ieee_float16_t diastolic;
@@ -165,23 +155,28 @@ typedef struct bps_meas_sim_value_s
 } bps_meas_sim_value_t;
 
 
-static uint16_t  m_conn_handle = BLE_CONN_HANDLE_INVALID;            /**< Handle of the current connection. */
-static ble_bas_t m_bas;                                              /**< Structure used to identify the battery service. */
-static ble_bps_t m_bps;                                              /**< Structure used to identify the blood pressure service. */
+APP_TIMER_DEF(m_battery_timer_id);                                      /**< Battery timer. */
+BLE_BAS_DEF(m_bas);                                                     /**< Structure used to identify the battery service. */
+BLE_BPS_DEF(m_bps);                                                     /**< Structure used to identify the blood pressure service. */
+NRF_BLE_GATT_DEF(m_gatt);                                               /**< GATT module instance. */
+NRF_BLE_QWR_DEF(m_qwr);                                                 /**< Context for the Queued Write module.*/
+BLE_ADVERTISING_DEF(m_advertising);                                     /**< Advertising module instance. */
 
-static bps_meas_sim_value_t m_bps_meas_sim_val[NUM_SIM_MEAS_VALUES]; /**< Blood Pressure simulated measurements. */
-static bool                 m_bps_meas_ind_conf_pending = false;     /**< Flag to keep track of when an indication confirmation is pending. */
+static uint16_t             m_conn_handle = BLE_CONN_HANDLE_INVALID;    /**< Handle of the current connection. */
+static bps_meas_sim_value_t m_bps_meas_sim_val[NUM_SIM_MEAS_VALUES];    /**< Blood Pressure simulated measurements. */
+static bool                 m_bps_meas_ind_conf_pending = false;        /**< Flag to keep track of when an indication confirmation is pending. */
+static sensorsim_cfg_t      m_battery_sim_cfg;                          /**< Battery Level sensor simulator configuration. */
+static sensorsim_state_t    m_battery_sim_state;                        /**< Battery Level sensor simulator state. */
 
-static sensorsim_cfg_t   m_battery_sim_cfg;                          /**< Battery Level sensor simulator configuration. */
-static sensorsim_state_t m_battery_sim_state;                        /**< Battery Level sensor simulator state. */
+static ble_uuid_t m_adv_uuids[] =                                       /**< Universally unique service identifiers. */
+{
+    {BLE_UUID_BLOOD_PRESSURE_SERVICE,     BLE_UUID_TYPE_BLE},
+    {BLE_UUID_BATTERY_SERVICE,            BLE_UUID_TYPE_BLE},
+    {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE}
+};
 
-APP_TIMER_DEF(m_battery_timer_id);                                   /**< Battery timer. */
 
-static ble_uuid_t m_adv_uuids[] = {{BLE_UUID_BLOOD_PRESSURE_SERVICE, BLE_UUID_TYPE_BLE},
-                                   {BLE_UUID_BATTERY_SERVICE, BLE_UUID_TYPE_BLE},
-                                   {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE}}; /**< Universally unique service identifiers. */
-
-static void advertising_start(void);
+static void advertising_start(bool erase_bonds);
 static void blood_pressure_measurement_send(void);
 
 /**@brief Callback function for asserts in the SoftDevice.
@@ -214,12 +209,12 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
     {
         case PM_EVT_BONDED_PEER_CONNECTED:
         {
-            NRF_LOG_INFO("Connected to a previously bonded device.\r\n");
+            NRF_LOG_INFO("Connected to a previously bonded device.");
         } break;
 
         case PM_EVT_CONN_SEC_SUCCEEDED:
         {
-            NRF_LOG_INFO("Connection secured. Role: %d. conn_handle: %d, Procedure: %d\r\n",
+            NRF_LOG_INFO("Connection secured: role: %d, conn_handle: 0x%x, procedure: %d.",
                          ble_conn_state_role(p_evt->conn_handle),
                          p_evt->conn_handle,
                          p_evt->params.conn_sec_succeeded.procedure);
@@ -257,7 +252,7 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
         {
             // Run garbage collection on the flash.
             err_code = fds_gc();
-            if (err_code == FDS_ERR_BUSY || err_code == FDS_ERR_NO_SPACE_IN_QUEUES)
+            if (err_code == FDS_ERR_NO_SPACE_IN_QUEUES)
             {
                 // Retry.
             }
@@ -269,13 +264,7 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
 
         case PM_EVT_PEERS_DELETE_SUCCEEDED:
         {
-            advertising_start();
-        } break;
-
-        case PM_EVT_LOCAL_DB_CACHE_APPLY_FAILED:
-        {
-            // The local database has likely changed, send service changed indications.
-            pm_local_database_has_changed();
+            advertising_start(false);
         } break;
 
         case PM_EVT_PEER_DATA_UPDATE_FAILED:
@@ -306,6 +295,8 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
         case PM_EVT_PEER_DATA_UPDATE_SUCCEEDED:
         case PM_EVT_PEER_DELETE_SUCCEEDED:
         case PM_EVT_LOCAL_DB_CACHE_APPLIED:
+        case PM_EVT_LOCAL_DB_CACHE_APPLY_FAILED:
+            // This can happen when the local DB has changed.
         case PM_EVT_SERVICE_CHANGED_IND_SENT:
         case PM_EVT_SERVICE_CHANGED_IND_CONFIRMED:
         default:
@@ -319,15 +310,15 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
  */
 static void battery_level_update(void)
 {
-    uint32_t err_code;
+    ret_code_t err_code;
     uint8_t  battery_level;
 
     battery_level = (uint8_t)sensorsim_measure(&m_battery_sim_state, &m_battery_sim_cfg);
 
-    err_code = ble_bas_battery_level_update(&m_bas, battery_level);
+    err_code = ble_bas_battery_level_update(&m_bas, battery_level, BLE_CONN_HANDLE_ALL);
     if ((err_code != NRF_SUCCESS) &&
         (err_code != NRF_ERROR_INVALID_STATE) &&
-        (err_code != BLE_ERROR_NO_TX_PACKETS) &&
+        (err_code != NRF_ERROR_RESOURCES) &&
         (err_code != BLE_ERROR_GATTS_SYS_ATTR_MISSING)
        )
     {
@@ -405,10 +396,11 @@ static void bps_sim_measurement(ble_bps_meas_t * p_meas)
  */
 static void timers_init(void)
 {
-    uint32_t err_code;
+    ret_code_t err_code;
 
     // Initialize timer module.
-    APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_OP_QUEUE_SIZE, false);
+    err_code = app_timer_init();
+    APP_ERROR_CHECK(err_code);
 
     // Create timers.
     err_code = app_timer_create(&m_battery_timer_id,
@@ -447,6 +439,15 @@ static void gap_params_init(void)
     gap_conn_params.conn_sup_timeout  = CONN_SUP_TIMEOUT;
 
     err_code = sd_ble_gap_ppcp_set(&gap_conn_params);
+    APP_ERROR_CHECK(err_code);
+}
+
+
+/**@brief Function for initializing the GATT module.
+ */
+static void gatt_init(void)
+{
+    ret_code_t err_code = nrf_ble_gatt_init(&m_gatt, NULL);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -515,17 +516,37 @@ static void on_bps_evt(ble_bps_t * p_bps, ble_bps_evt_t * p_evt)
 }
 
 
+/**@brief Function for handling Queued Write Module errors.
+ *
+ * @details A pointer to this function will be passed to each service which may need to inform the
+ *          application about an error.
+ *
+ * @param[in]   nrf_error   Error code containing information about what went wrong.
+ */
+static void nrf_qwr_error_handler(uint32_t nrf_error)
+{
+    APP_ERROR_HANDLER(nrf_error);
+}
+
+
 /**@brief Function for initializing services that will be used by the application.
  *
  * @details Initialize the Blood Pressure, Battery, and Device Information services.
  */
 static void services_init(void)
 {
-    uint32_t         err_code;
-    ble_bps_init_t   bps_init;
-    ble_bas_init_t   bas_init;
-    ble_dis_init_t   dis_init;
-    ble_dis_sys_id_t sys_id;
+    uint32_t           err_code;
+    ble_bps_init_t     bps_init;
+    ble_bas_init_t     bas_init;
+    ble_dis_init_t     dis_init;
+    ble_dis_sys_id_t   sys_id;
+    nrf_ble_qwr_init_t qwr_init = {0};
+
+    // Initialize Queued Write Module
+    qwr_init.error_handler = nrf_qwr_error_handler;
+
+    err_code = nrf_ble_qwr_init(&m_qwr, &qwr_init);
+    APP_ERROR_CHECK(err_code);
 
     // Initialize Blood Pressure Service.
     memset(&bps_init, 0, sizeof(bps_init));
@@ -638,7 +659,7 @@ static void sensor_simulator_init(void)
  */
 static void application_timers_start(void)
 {
-    uint32_t err_code;
+    ret_code_t err_code;
 
     // Start application timers.
     err_code = app_timer_start(m_battery_timer_id, BATTERY_LEVEL_MEAS_INTERVAL, NULL);
@@ -658,7 +679,7 @@ static void application_timers_start(void)
  */
 static void on_conn_params_evt(ble_conn_params_evt_t * p_evt)
 {
-    uint32_t err_code;
+    ret_code_t err_code;
 
     if (p_evt->evt_type == BLE_CONN_PARAMS_EVT_FAILED)
     {
@@ -707,7 +728,7 @@ static void conn_params_init(void)
  */
 static void sleep_mode_enter(void)
 {
-    uint32_t err_code = bsp_indication_set(BSP_INDICATE_IDLE);
+    ret_code_t err_code = bsp_indication_set(BSP_INDICATE_IDLE);
 
     APP_ERROR_CHECK(err_code);
 
@@ -729,12 +750,12 @@ static void sleep_mode_enter(void)
  */
 static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
 {
-    uint32_t err_code;
+    ret_code_t err_code;
 
     switch (ble_adv_evt)
     {
         case BLE_ADV_EVT_FAST:
-            NRF_LOG_INFO("Fast advertising\r\n");
+            NRF_LOG_INFO("Fast advertising");
             err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
             APP_ERROR_CHECK(err_code);
             break;
@@ -750,134 +771,64 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
 }
 
 
-/**@brief Function for handling the Application's BLE Stack events.
+/**@brief Function for handling BLE events.
  *
- * @param[in] p_ble_evt  Bluetooth stack event.
+ * @param[in]   p_ble_evt   Bluetooth stack event.
+ * @param[in]   p_context   Unused.
  */
-static void on_ble_evt(ble_evt_t * p_ble_evt)
+static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
 {
-    uint32_t err_code = NRF_SUCCESS;
+    ret_code_t err_code = NRF_SUCCESS;
 
     switch (p_ble_evt->header.evt_id)
     {
         case BLE_GAP_EVT_CONNECTED:
-            NRF_LOG_INFO("Connected\r\n");
+            NRF_LOG_INFO("Connected");
             err_code = bsp_indication_set(BSP_INDICATE_CONNECTED);
             APP_ERROR_CHECK(err_code);
-
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
-            break; // BLE_GAP_EVT_CONNECTED
+            err_code = nrf_ble_qwr_conn_handle_assign(&m_qwr, m_conn_handle);
+            APP_ERROR_CHECK(err_code);
+            break;
 
         case BLE_GAP_EVT_DISCONNECTED:
-            NRF_LOG_INFO("Disconnected\r\n");
+            NRF_LOG_INFO("Disconnected");
             m_conn_handle               = BLE_CONN_HANDLE_INVALID;
             m_bps_meas_ind_conf_pending = false;
-            break; // BLE_GAP_EVT_DISCONNECTED
+            break;
+
+        case BLE_GAP_EVT_PHY_UPDATE_REQUEST:
+        {
+            NRF_LOG_DEBUG("PHY update request.");
+            ble_gap_phys_t const phys =
+            {
+                .rx_phys = BLE_GAP_PHY_AUTO,
+                .tx_phys = BLE_GAP_PHY_AUTO,
+            };
+            err_code = sd_ble_gap_phy_update(p_ble_evt->evt.gap_evt.conn_handle, &phys);
+            APP_ERROR_CHECK(err_code);
+        } break;
 
         case BLE_GATTC_EVT_TIMEOUT:
             // Disconnect on GATT Client timeout event.
-            NRF_LOG_DEBUG("GATT Client Timeout.\r\n");
+            NRF_LOG_DEBUG("GATT Client Timeout.");
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle,
                                              BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
             APP_ERROR_CHECK(err_code);
-            break; // BLE_GATTC_EVT_TIMEOUT
+            break;
 
         case BLE_GATTS_EVT_TIMEOUT:
             // Disconnect on GATT Server timeout event.
-            NRF_LOG_DEBUG("GATT Server Timeout.\r\n");
+            NRF_LOG_DEBUG("GATT Server Timeout.");
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
                                              BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
             APP_ERROR_CHECK(err_code);
-            break; // BLE_GATTS_EVT_TIMEOUT
-
-        case BLE_EVT_USER_MEM_REQUEST:
-            err_code = sd_ble_user_mem_reply(m_conn_handle, NULL);
-            APP_ERROR_CHECK(err_code);
-            break; // BLE_EVT_USER_MEM_REQUEST
-
-        case BLE_GATTS_EVT_RW_AUTHORIZE_REQUEST:
-        {
-            ble_gatts_evt_rw_authorize_request_t  req;
-            ble_gatts_rw_authorize_reply_params_t auth_reply;
-
-            req = p_ble_evt->evt.gatts_evt.params.authorize_request;
-
-            if (req.type != BLE_GATTS_AUTHORIZE_TYPE_INVALID)
-            {
-                if ((req.request.write.op == BLE_GATTS_OP_PREP_WRITE_REQ)     ||
-                    (req.request.write.op == BLE_GATTS_OP_EXEC_WRITE_REQ_NOW) ||
-                    (req.request.write.op == BLE_GATTS_OP_EXEC_WRITE_REQ_CANCEL))
-                {
-                    if (req.type == BLE_GATTS_AUTHORIZE_TYPE_WRITE)
-                    {
-                        auth_reply.type = BLE_GATTS_AUTHORIZE_TYPE_WRITE;
-                    }
-                    else
-                    {
-                        auth_reply.type = BLE_GATTS_AUTHORIZE_TYPE_READ;
-                    }
-                    auth_reply.params.write.gatt_status = APP_FEATURE_NOT_SUPPORTED;
-                    err_code = sd_ble_gatts_rw_authorize_reply(p_ble_evt->evt.gatts_evt.conn_handle,
-                                                               &auth_reply);
-                    APP_ERROR_CHECK(err_code);
-                }
-            }
-        } break; // BLE_GATTS_EVT_RW_AUTHORIZE_REQUEST
-
-#if (NRF_SD_BLE_API_VERSION == 3)
-        case BLE_GATTS_EVT_EXCHANGE_MTU_REQUEST:
-            err_code = sd_ble_gatts_exchange_mtu_reply(p_ble_evt->evt.gatts_evt.conn_handle,
-                                                       NRF_BLE_MAX_MTU_SIZE);
-            APP_ERROR_CHECK(err_code);
-            break; // BLE_GATTS_EVT_EXCHANGE_MTU_REQUEST
-#endif
+            break;
 
         default:
             // No implementation needed.
             break;
     }
-}
-
-
-/**@brief Function for dispatching a BLE stack event to all modules with a BLE stack event handler.
- *
- * @details This function is called from the BLE Stack event interrupt handler after a BLE stack
- *          event has been received.
- *
- * @param[in] p_ble_evt  Bluetooth stack event.
- */
-static void ble_evt_dispatch(ble_evt_t * p_ble_evt)
-{
-    ble_bps_on_ble_evt(&m_bps, p_ble_evt);
-    ble_bas_on_ble_evt(&m_bas, p_ble_evt);
-    ble_conn_params_on_ble_evt(p_ble_evt);
-    /** The Connection state module has to be fed BLE events in order to function correctly
-     * Remember to call ble_conn_state_on_ble_evt before calling any ble_conns_state_* functions. */
-    ble_conn_state_on_ble_evt(p_ble_evt);
-    pm_on_ble_evt(p_ble_evt);
-    bsp_btn_ble_on_ble_evt(p_ble_evt);
-    on_ble_evt(p_ble_evt);
-    ble_advertising_on_ble_evt(p_ble_evt);
-}
-
-
-/**@brief Function for dispatching a system event to interested modules.
- *
- * @details This function is called from the System event interrupt handler after a system
- *          event has been received.
- *
- * @param[in] sys_evt  System stack event.
- */
-static void sys_evt_dispatch(uint32_t sys_evt)
-{
-    // Dispatch the system event to the fstorage module, where it will be
-    // dispatched to the Flash Data Storage (FDS) module.
-    fs_sys_event_handler(sys_evt);
-
-    // Dispatch to the Advertising module last, since it will check if there are any
-    // pending flash operations in fstorage. Let fstorage process system events first,
-    // so that it can report correctly to the Advertising module.
-    ble_advertising_on_sys_evt(sys_evt);
 }
 
 
@@ -887,36 +838,23 @@ static void sys_evt_dispatch(uint32_t sys_evt)
  */
 static void ble_stack_init(void)
 {
-    uint32_t err_code;
+    ret_code_t err_code;
 
-    nrf_clock_lf_cfg_t clock_lf_cfg = NRF_CLOCK_LFCLKSRC;
-
-    // Initialize the SoftDevice handler module.
-    SOFTDEVICE_HANDLER_INIT(&clock_lf_cfg, NULL);
-
-    ble_enable_params_t ble_enable_params;
-    err_code = softdevice_enable_get_default_config(CENTRAL_LINK_COUNT,
-                                                    PERIPHERAL_LINK_COUNT,
-                                                    &ble_enable_params);
+    err_code = nrf_sdh_enable_request();
     APP_ERROR_CHECK(err_code);
 
-    // Check the ram settings against the used number of links
-    CHECK_RAM_START_ADDR(CENTRAL_LINK_COUNT, PERIPHERAL_LINK_COUNT);
+    // Configure the BLE stack using the default settings.
+    // Fetch the start address of the application RAM.
+    uint32_t ram_start = 0;
+    err_code = nrf_sdh_ble_default_cfg_set(APP_BLE_CONN_CFG_TAG, &ram_start);
+    APP_ERROR_CHECK(err_code);
 
     // Enable BLE stack.
-#if (NRF_SD_BLE_API_VERSION == 3)
-    ble_enable_params.gatt_enable_params.att_mtu = NRF_BLE_MAX_MTU_SIZE;
-#endif
-    err_code = softdevice_enable(&ble_enable_params);
+    err_code = nrf_sdh_ble_enable(&ram_start);
     APP_ERROR_CHECK(err_code);
 
-    // Register with the SoftDevice handler module for BLE events.
-    err_code = softdevice_ble_evt_handler_set(ble_evt_dispatch);
-    APP_ERROR_CHECK(err_code);
-
-    // Register with the SoftDevice handler module for BLE events.
-    err_code = softdevice_sys_evt_handler_set(sys_evt_dispatch);
-    APP_ERROR_CHECK(err_code);
+    // Register a handler for BLE events.
+    NRF_SDH_BLE_OBSERVER(m_ble_observer, APP_BLE_OBSERVER_PRIO, ble_evt_handler, NULL);
 }
 
 
@@ -926,7 +864,7 @@ static void ble_stack_init(void)
  */
 static void bsp_event_handler(bsp_event_t event)
 {
-    uint32_t err_code;
+    ret_code_t err_code;
 
     switch (event)
     {
@@ -946,7 +884,7 @@ static void bsp_event_handler(bsp_event_t event)
         case BSP_EVENT_WHITELIST_OFF:
             if (m_conn_handle == BLE_CONN_HANDLE_INVALID)
             {
-                err_code = ble_advertising_restart_without_whitelist();
+                err_code = ble_advertising_restart_without_whitelist(&m_advertising);
                 if (err_code != NRF_ERROR_INVALID_STATE)
                 {
                     APP_ERROR_CHECK(err_code);
@@ -968,23 +906,14 @@ static void bsp_event_handler(bsp_event_t event)
 
 
 /**@brief Function for the Peer Manager initialization.
- *
- * @param[in] erase_bonds  Indicates whether bonding information should be cleared from
- *                         persistent storage during initialization of the Peer Manager.
  */
-static void peer_manager_init(bool erase_bonds)
+static void peer_manager_init(void)
 {
     ble_gap_sec_params_t sec_param;
     ret_code_t           err_code;
 
     err_code = pm_init();
     APP_ERROR_CHECK(err_code);
-
-    if (erase_bonds)
-    {
-        err_code = pm_peers_delete();
-        APP_ERROR_CHECK(err_code);
-    }
 
     memset(&sec_param, 0, sizeof(ble_gap_sec_params_t));
 
@@ -1010,30 +939,44 @@ static void peer_manager_init(bool erase_bonds)
 }
 
 
+/**@brief Clear bond information from persistent storage.
+ */
+static void delete_bonds(void)
+{
+    ret_code_t err_code;
+
+    NRF_LOG_INFO("Erase bonds!");
+
+    err_code = pm_peers_delete();
+    APP_ERROR_CHECK(err_code);
+}
+
+
 /**@brief Function for initializing the Advertising functionality.
  */
 static void advertising_init(void)
 {
-    uint32_t               err_code;
-    ble_advdata_t          advdata;
-    ble_adv_modes_config_t options;
+    ret_code_t             err_code;
+    ble_advertising_init_t init;
 
-    // Build and set advertising data
-    memset(&advdata, 0, sizeof(advdata));
+    memset(&init, 0, sizeof(init));
 
-    advdata.name_type               = BLE_ADVDATA_FULL_NAME;
-    advdata.include_appearance      = true;
-    advdata.flags                   = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
-    advdata.uuids_complete.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
-    advdata.uuids_complete.p_uuids  = m_adv_uuids;
+    init.advdata.name_type               = BLE_ADVDATA_FULL_NAME;
+    init.advdata.include_appearance      = true;
+    init.advdata.flags                   = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
+    init.advdata.uuids_complete.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
+    init.advdata.uuids_complete.p_uuids  = m_adv_uuids;
 
-    memset(&options, 0, sizeof(options));
-    options.ble_adv_fast_enabled  = true;
-    options.ble_adv_fast_interval = APP_ADV_INTERVAL;
-    options.ble_adv_fast_timeout  = APP_ADV_TIMEOUT_IN_SECONDS;
+    init.config.ble_adv_fast_enabled  = true;
+    init.config.ble_adv_fast_interval = APP_ADV_INTERVAL;
+    init.config.ble_adv_fast_timeout  = APP_ADV_DURATION;
 
-    err_code = ble_advertising_init(&advdata, NULL, &options, on_adv_evt, NULL);
+    init.evt_handler = on_adv_evt;
+
+    err_code = ble_advertising_init(&m_advertising, &init);
     APP_ERROR_CHECK(err_code);
+
+    ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
 }
 
 
@@ -1043,12 +986,10 @@ static void advertising_init(void)
  */
 static void buttons_leds_init(bool * p_erase_bonds)
 {
+    ret_code_t err_code;
     bsp_event_t startup_event;
 
-    uint32_t err_code = bsp_init(BSP_INIT_LED | BSP_INIT_BUTTONS,
-                                 APP_TIMER_TICKS(100, APP_TIMER_PRESCALER),
-                                 bsp_event_handler);
-
+    err_code = bsp_init(BSP_INIT_LEDS | BSP_INIT_BUTTONS, bsp_event_handler);
     APP_ERROR_CHECK(err_code);
 
     err_code = bsp_btn_ble_init(NULL, &startup_event);
@@ -1058,23 +999,54 @@ static void buttons_leds_init(bool * p_erase_bonds)
 }
 
 
-/**@brief Function for the Power manager.
+/**@brief Function for initializing the nrf log module.
  */
-static void power_manage(void)
+static void log_init(void)
 {
-    uint32_t err_code = sd_app_evt_wait();
-
+    ret_code_t err_code = NRF_LOG_INIT(NULL);
     APP_ERROR_CHECK(err_code);
+
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
+}
+
+
+/**@brief Function for initializing power management.
+ */
+static void power_management_init(void)
+{
+    ret_code_t err_code;
+    err_code = nrf_pwr_mgmt_init();
+    APP_ERROR_CHECK(err_code);
+}
+
+
+/**@brief Function for handling the idle state (main loop).
+ *
+ * @details If there is no pending log operation, then sleep until next the next event occurs.
+ */
+static void idle_state_handle(void)
+{
+    if (NRF_LOG_PROCESS() == false)
+    {
+        nrf_pwr_mgmt_run();
+    }
 }
 
 
 /**@brief Function for starting advertising.
  */
-static void advertising_start(void)
+static void advertising_start(bool erase_bonds)
 {
-    uint32_t err_code = ble_advertising_start(BLE_ADV_MODE_FAST);
+    if (erase_bonds == true)
+    {
+        delete_bonds();
+        // Advertising is started by PM_EVT_PEERS_DELETE_SUCCEEDED event.
+    }
+    else{
+        ret_code_t err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
 
-    APP_ERROR_CHECK(err_code);
+        APP_ERROR_CHECK(err_code);
+    }
 }
 
 
@@ -1083,40 +1055,31 @@ static void advertising_start(void)
 int main(void)
 {
     bool     erase_bonds;
-    uint32_t err_code;
-
-    err_code = NRF_LOG_INIT(NULL);
-    APP_ERROR_CHECK(err_code);
 
     // Initialize.
+    log_init();
     timers_init();
     buttons_leds_init(&erase_bonds);
+    power_management_init();
     ble_stack_init();
-    peer_manager_init(erase_bonds);
-    if (erase_bonds == true)
-    {
-        NRF_LOG_INFO("Bonds erased!\r\n");
-    }
     gap_params_init();
+    gatt_init();
     advertising_init();
     services_init();
     sensor_simulator_init();
     conn_params_init();
+    peer_manager_init();
 
     // Start execution.
-    NRF_LOG_INFO("Blood Pressure started\r\n");
+    NRF_LOG_INFO("Blood Pressure example started.");
     application_timers_start();
 
-    err_code = ble_advertising_start(BLE_ADV_MODE_FAST);
-    APP_ERROR_CHECK(err_code);
+    advertising_start(erase_bonds);
 
     // Enter main loop.
     for (;;)
     {
-        if (NRF_LOG_PROCESS() == false)
-        {
-            power_manage();
-        }
+        idle_state_handle();
     }
 }
 

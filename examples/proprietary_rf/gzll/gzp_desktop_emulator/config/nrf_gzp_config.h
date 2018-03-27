@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2008 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2008 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,10 +37,10 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
-
 #ifndef __GZP_CONFIG_H
 #define __GZP_CONFIG_H
+
+#include "nrf.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -148,8 +148,10 @@ extern "C" {
 */
 #if defined (NRF51)
     #define GZP_DEVICE_PARAMS_STORAGE_SIZE 1024
-#elif defined (NRF52)
+#elif defined (NRF52_SERIES)
     #define GZP_DEVICE_PARAMS_STORAGE_SIZE 4096
+#else
+    #error Chip type is undefined!
 #endif
 
 /**

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,11 +37,75 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #include "sdk_common.h"
 #if NRF_MODULE_ENABLED(NRF_QUEUE)
 #include "nrf_queue.h"
 #include "app_util_platform.h"
+
+#if NRF_QUEUE_CONFIG_LOG_ENABLED
+    #define NRF_LOG_LEVEL             NRF_QUEUE_CONFIG_LOG_LEVEL
+    #define NRF_LOG_INIT_FILTER_LEVEL NRF_QUEUE_CONFIG_LOG_INIT_FILTER_LEVEL
+    #define NRF_LOG_INFO_COLOR        NRF_QUEUE_CONFIG_INFO_COLOR
+    #define NRF_LOG_DEBUG_COLOR       NRF_QUEUE_CONFIG_DEBUG_COLOR
+#else
+    #define NRF_LOG_LEVEL       0
+#endif // NRF_QUEUE_CONFIG_LOG_ENABLED
+#include "nrf_log.h"
+
+NRF_SECTION_DEF(nrf_queue, nrf_queue_t);
+
+#if NRF_QUEUE_CLI_CMDS
+#include "nrf_cli.h"
+
+static void nrf_queue_status(nrf_cli_t const * p_cli, size_t argc, char **argv)
+{
+    UNUSED_PARAMETER(argv);
+
+    if (nrf_cli_help_requested(p_cli))
+    {
+        nrf_cli_help_print(p_cli, NULL, 0);
+        return;
+    }
+
+    if (argc > 1)
+    {
+        nrf_cli_fprintf(p_cli, NRF_CLI_ERROR, "Bad argument count");
+        return;
+    }
+
+    uint32_t num_of_instances = NRF_SECTION_ITEM_COUNT(nrf_queue, nrf_queue_t);
+    uint32_t i;
+
+    for (i = 0; i < num_of_instances; i++)
+    {
+        const nrf_queue_t * p_instance = NRF_SECTION_ITEM_GET(nrf_queue, nrf_queue_t, i);
+
+        uint32_t element_size = p_instance->element_size;
+        uint32_t size         = p_instance->size;
+        uint32_t max_util     = nrf_queue_max_utilization_get(p_instance);
+        uint32_t util         = nrf_queue_utilization_get(p_instance);
+        const char * p_name   = p_instance->p_name;
+        nrf_cli_fprintf(p_cli, NRF_CLI_NORMAL,
+                        "%s\r\n\t- Element size:\t%d\r\n"
+                        "\t- Usage:\t%u%% (%u out of %u elements)\r\n"
+                        "\t- Maximum:\t%u%% (%u out of %u elements)\r\n"
+                        "\t- Mode:\t\t%s\r\n\r\n",
+                        p_name, element_size,
+                        100ul * util/size, util,size,
+                        100ul * max_util/size, max_util,size,
+                        (p_instance->mode == NRF_QUEUE_MODE_OVERFLOW) ? "Overflow" : "No overflow");
+
+    }
+}
+// Register "queue" command and its subcommands in CLI.
+NRF_CLI_CREATE_STATIC_SUBCMD_SET(nrf_queue_commands)
+{
+     NRF_CLI_CMD(status, NULL, "Print status of queue instances.", nrf_queue_status),
+     NRF_CLI_SUBCMD_SET_END
+};
+
+NRF_CLI_CMD_REGISTER(queue, &nrf_queue_commands, "Commands for BALLOC management", nrf_queue_status);
+#endif //NRF_QUEUE_CLI_CMDS
 
 /**@brief Get next element index.
  *
@@ -64,15 +128,18 @@ __STATIC_INLINE size_t nrf_queue_next_idx(nrf_queue_t const * p_queue, size_t id
  */
 __STATIC_INLINE size_t queue_utilization_get(nrf_queue_t const * p_queue)
 {
-    return (p_queue->p_cb->back >= p_queue->p_cb->front) ?
-           (p_queue->p_cb->back - p_queue->p_cb->front)  :
-           (p_queue->size + 1 - p_queue->p_cb->front + p_queue->p_cb->back);
+    size_t front    = p_queue->p_cb->front;
+    size_t back     = p_queue->p_cb->back;
+    return (back >= front) ? (back - front) : (p_queue->size + 1 - front + back);
 }
 
 bool nrf_queue_is_full(nrf_queue_t const * p_queue)
 {
     ASSERT(p_queue != NULL);
-    return (nrf_queue_next_idx(p_queue, p_queue->p_cb->back) == p_queue->p_cb->front);
+    size_t front    = p_queue->p_cb->front;
+    size_t back     = p_queue->p_cb->back;
+
+    return (nrf_queue_next_idx(p_queue, back) == front);
 }
 
 ret_code_t nrf_queue_push(nrf_queue_t const * p_queue, void const * p_element)
@@ -93,6 +160,7 @@ ret_code_t nrf_queue_push(nrf_queue_t const * p_queue, void const * p_element)
         if (is_full)
         {
             // Overwrite the oldest element.
+            NRF_LOG_INST_WARNING(p_queue->p_log, "Queue full. Overwriting oldest element.");
             p_queue->p_cb->front = nrf_queue_next_idx(p_queue, p_queue->p_cb->front);
         }
 
@@ -136,6 +204,7 @@ ret_code_t nrf_queue_push(nrf_queue_t const * p_queue, void const * p_element)
 
     CRITICAL_REGION_EXIT();
 
+    NRF_LOG_INST_DEBUG(p_queue->p_log, "pushed element 0x%08X, status:%d", p_element, status);
     return status;
 }
 
@@ -145,8 +214,8 @@ ret_code_t nrf_queue_generic_pop(nrf_queue_t const * p_queue,
 {
     ret_code_t status = NRF_SUCCESS;
 
-    ASSERT(p_queue != NULL);
-    ASSERT(p_element != NULL);
+    ASSERT(p_queue      != NULL);
+    ASSERT(p_element    != NULL);
 
     CRITICAL_REGION_ENTER();
 
@@ -193,7 +262,8 @@ ret_code_t nrf_queue_generic_pop(nrf_queue_t const * p_queue,
     }
 
     CRITICAL_REGION_EXIT();
-
+    NRF_LOG_INST_DEBUG(p_queue->p_log, "%s element 0x%08X, status:%d",
+                                         just_peek ? "peeked" : "popped", p_element, status);
     return status;
 }
 
@@ -277,16 +347,20 @@ ret_code_t nrf_queue_write(nrf_queue_t const * p_queue,
 
     CRITICAL_REGION_EXIT();
 
+    NRF_LOG_INST_DEBUG(p_queue->p_log, "Write %d elements (start address: 0x%08X), status:%d",
+                                       element_count, p_data, status);
     return status;
 }
 
 
 size_t nrf_queue_in(nrf_queue_t const * p_queue,
-                    void              * p_data,
+                    void const        * p_data,
                     size_t              element_count)
 {
     ASSERT(p_queue != NULL);
     ASSERT(p_data != NULL);
+
+    size_t req_element_count = element_count;
 
     if (element_count == 0)
     {
@@ -309,6 +383,9 @@ size_t nrf_queue_in(nrf_queue_t const * p_queue,
 
     CRITICAL_REGION_EXIT();
 
+    NRF_LOG_INST_DEBUG(p_queue->p_log, "Put in %d elements (start address: 0x%08X), requested :%d",
+                                       element_count, p_data, req_element_count);
+
     return element_count;
 }
 
@@ -321,11 +398,11 @@ size_t nrf_queue_in(nrf_queue_t const * p_queue,
  */
 static void queue_read(nrf_queue_t const * p_queue, void * p_data, uint32_t element_count)
 {
-    size_t     continuous = (p_queue->p_cb->front <= p_queue->p_cb->back)
-                          ? p_queue->p_cb->back - p_queue->p_cb->front
-                          : p_queue->size + 1 - p_queue->p_cb->front;
+    size_t front        = p_queue->p_cb->front;
+    size_t back         = p_queue->p_cb->back;
+    size_t continuous   = (front <= back) ? (back - front) : (p_queue->size + 1 - front);
     void const * p_read_ptr = (void const *)((size_t)p_queue->p_buffer
-                            + p_queue->p_cb->front * p_queue->element_size);
+                                           + front * p_queue->element_size);
 
     if (element_count <= continuous)
     {
@@ -333,8 +410,8 @@ static void queue_read(nrf_queue_t const * p_queue, void * p_data, uint32_t elem
                p_read_ptr,
                element_count * p_queue->element_size);
 
-        p_queue->p_cb->front = ((p_queue->p_cb->front + element_count) <= p_queue->size)
-                             ? (p_queue->p_cb->front + element_count)
+        p_queue->p_cb->front = ((front + element_count) <= p_queue->size)
+                             ? (front + element_count)
                              : 0;
     }
     else
@@ -380,6 +457,8 @@ ret_code_t nrf_queue_read(nrf_queue_t const * p_queue,
 
     CRITICAL_REGION_EXIT();
 
+    NRF_LOG_INST_DEBUG(p_queue->p_log, "Read %d elements (start address: 0x%08X), status :%d",
+                                       element_count, p_data, status);
     return status;
 }
 
@@ -389,6 +468,8 @@ size_t nrf_queue_out(nrf_queue_t const * p_queue,
 {
     ASSERT(p_queue != NULL);
     ASSERT(p_data != NULL);
+
+    size_t req_element_count = element_count;
 
     if (element_count == 0)
     {
@@ -404,6 +485,8 @@ size_t nrf_queue_out(nrf_queue_t const * p_queue,
 
     CRITICAL_REGION_EXIT();
 
+    NRF_LOG_INST_DEBUG(p_queue->p_log, "Out %d elements (start address: 0x%08X), requested :%d",
+                                       element_count, p_data, req_element_count);
     return element_count;
 }
 
@@ -416,6 +499,8 @@ void nrf_queue_reset(nrf_queue_t const * p_queue)
     memset(p_queue->p_cb, 0, sizeof(nrf_queue_cb_t));
 
     CRITICAL_REGION_EXIT();
+
+    NRF_LOG_INST_DEBUG(p_queue->p_log, "Reset");
 }
 
 size_t nrf_queue_utilization_get(nrf_queue_t const * p_queue)
@@ -431,5 +516,32 @@ size_t nrf_queue_utilization_get(nrf_queue_t const * p_queue)
 
     return utilization;
 }
+
+bool nrf_queue_is_empty(nrf_queue_t const * p_queue)
+{
+    ASSERT(p_queue != NULL);
+    size_t front    = p_queue->p_cb->front;
+    size_t back     = p_queue->p_cb->back;
+    return (front == back);
+}
+
+size_t nrf_queue_available_get(nrf_queue_t const * p_queue)
+{
+    ASSERT(p_queue != NULL);
+    return p_queue->size - nrf_queue_utilization_get(p_queue);
+}
+
+size_t nrf_queue_max_utilization_get(nrf_queue_t const * p_queue)
+{
+    ASSERT(p_queue != NULL);
+    return p_queue->p_cb->max_utilization;
+}
+
+void nrf_queue_max_utilization_reset(nrf_queue_t const * p_queue)
+{
+    ASSERT(p_queue != NULL);
+    p_queue->p_cb->max_utilization = 0;
+}
+
 
 #endif // NRF_MODULE_ENABLED(NRF_QUEUE)

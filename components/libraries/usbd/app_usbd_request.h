@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,12 +37,9 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
+
 #ifndef APP_USBD_REQUEST_H__
 #define APP_USBD_REQUEST_H__
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #include "sdk_common.h"
 #include "nrf.h"
@@ -50,8 +47,12 @@ extern "C" {
 #include "app_usbd_descriptor.h"
 #include "app_util_platform.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Compiler support for anonymous unions */
-ANON_UNIONS_ENABLE
+ANON_UNIONS_ENABLE;
 
 #pragma pack(push, 1)
 
@@ -231,15 +232,16 @@ typedef enum {
  * @ref APP_USBD_SETUP_STDREQ_CLEAR_FEATURE or @ref APP_USBD_SETUP_STDREQ_SET_FEATURE
  */
 typedef enum {
-    APP_USBD_SETUP_STDFEATURE_DEVICE_REMOTE_WAKEUP = 1, /**< Remote wakeup feature.
-                                                         *
+    APP_USBD_SETUP_STDFEATURE_DEVICE_REMOTE_WAKEUP = 1, /**< 
+                                                         *   Remote wakeup feature.
                                                          *   Target: Device only
                                                          */
-    APP_USBD_SETUP_STDFEATURE_ENDPOINT_HALT        = 0, /**< Stall or clear the endpoint.
-                                                         *
+    APP_USBD_SETUP_STDFEATURE_ENDPOINT_HALT        = 0, /**< 
+                                                         *   Stall or clear the endpoint.
                                                          *   Target: Endpoint different than default (0)
                                                          */
-    APP_USBD_SETUP_STDFEATURE_TEST_MODE            = 2  /**< Upstream port test mode.
+    APP_USBD_SETUP_STDFEATURE_TEST_MODE            = 2  /**< 
+                                                         *   Upstream port test mode.
                                                          *   Power has to be cycled to exit test mode.
                                                          *   This feature cannot be cleared.
                                                          *
@@ -344,7 +346,7 @@ static inline uint8_t app_usbd_setup_req_val(app_usbd_setup_reqrec_t  rec,
 }
 
 
-ANON_UNIONS_DISABLE
+ANON_UNIONS_DISABLE;
 /** @} */
 
 #ifdef __cplusplus

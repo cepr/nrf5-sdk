@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,18 +37,17 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #ifndef APP_USBD_STRING_DESC_H__
 #define APP_USBD_STRING_DESC_H__
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #include <stdint.h>
 #include "sdk_common.h"
 #include "app_usbd.h"
 #include "app_usbd_string_config.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @defgroup app_usbd_string_desc USBD string descriptors

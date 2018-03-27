@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #include "nrf_drv_spi.h"
 #include "app_util_platform.h"
 #include "nrf_gpio.h"
@@ -45,9 +44,9 @@
 #include "boards.h"
 #include "app_error.h"
 #include <string.h>
-#define NRF_LOG_MODULE_NAME "APP"
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 
 #define SPI_INSTANCE  0 /**< SPI instance index. */
 static const nrf_drv_spi_t spi = NRF_DRV_SPI_INSTANCE(SPI_INSTANCE);  /**< SPI instance. */
@@ -62,31 +61,33 @@ static const uint8_t m_length = sizeof(m_tx_buf);        /**< Transfer length. *
  * @brief SPI user event handler.
  * @param event
  */
-void spi_event_handler(nrf_drv_spi_evt_t const * p_event)
+void spi_event_handler(nrf_drv_spi_evt_t const * p_event,
+                       void *                    p_context)
 {
     spi_xfer_done = true;
-    NRF_LOG_INFO("Transfer completed.\r\n");
+    NRF_LOG_INFO("Transfer completed.");
     if (m_rx_buf[0] != 0)
     {
-        NRF_LOG_INFO(" Received: \r\n");
+        NRF_LOG_INFO(" Received:");
         NRF_LOG_HEXDUMP_INFO(m_rx_buf, strlen((const char *)m_rx_buf));
     }
 }
 
 int main(void)
 {
-    bsp_board_leds_init();
+    bsp_board_init(BSP_INIT_LEDS);
 
     APP_ERROR_CHECK(NRF_LOG_INIT(NULL));
-
-    NRF_LOG_INFO("SPI example\r\n");
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
 
     nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;
     spi_config.ss_pin   = SPI_SS_PIN;
     spi_config.miso_pin = SPI_MISO_PIN;
     spi_config.mosi_pin = SPI_MOSI_PIN;
     spi_config.sck_pin  = SPI_SCK_PIN;
-    APP_ERROR_CHECK(nrf_drv_spi_init(&spi, &spi_config, spi_event_handler));
+    APP_ERROR_CHECK(nrf_drv_spi_init(&spi, &spi_config, spi_event_handler, NULL));
+
+    NRF_LOG_INFO("SPI example started.");
 
     while (1)
     {

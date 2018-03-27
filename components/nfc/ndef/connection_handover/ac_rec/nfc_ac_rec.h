@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #ifndef NFC_AC_REC_H__
 #define NFC_AC_REC_H__
 
@@ -61,7 +60,7 @@ extern "C" {
 #define AC_REC_CPS_BYTE_SIZE            1 ///< Size of the field with CPS data.
 #define AC_REC_DATA_REF_LEN_SIZE        1 ///< Size of the Data Reference Length field.
 #define AC_REC_AUX_DATA_REF_COUNT_SIZE  1 ///< Size of the Data Reference Length field.
-    
+
 /**
  * @brief Carrier Power State.
  *
@@ -124,10 +123,14 @@ extern const uint8_t nfc_ac_rec_type_field[2];
 /**
  *@brief Macro for creating and initializing an NFC NDEF record descriptor for an Alternative Carrier record.
  *
- * This macro creates and initializes a static instance of type @ref nfc_ndef_record_desc_t and
- * a static instance of type @ref nfc_ac_rec_payload_desc_t, which together constitute an instance of an Alternative Carrier record.
+ * This macro creates and initializes an instance of type @ref nfc_ndef_record_desc_t and
+ * an instance of type @ref nfc_ac_rec_payload_desc_t, which together constitute an instance of an Alternative Carrier record.
  *
  * Use the macro @ref NFC_NDEF_AC_RECORD_DESC to access the NDEF Alternative Carrier record descriptor instance.
+ *
+ * @note The record descriptor is declared as automatic variable, which implies that
+ *       the NDEF message encoding (see @ref nfc_ble_full_handover_select_msg_encode)
+ *       must be done in the same variable scope.
  *
  * @param[in] NAME              Name of the created record descriptor instance.
  * @param[in] CPS               Carrier Power State value.
@@ -140,8 +143,8 @@ extern const uint8_t nfc_ac_rec_type_field[2];
                                     CARR_DATA_REF_LEN,                                          \
                                     P_CARR_DATA_REF,                                            \
                                     MAX_AUX_DATA_REF)                                           \
-    static nfc_ac_rec_data_ref_t     NAME##_nfc_ac_rec_aux_data_ref_array[MAX_AUX_DATA_REF];    \
-    static nfc_ac_rec_payload_desc_t NAME##_nfc_ac_rec_payload_desc =                           \
+    nfc_ac_rec_data_ref_t     NAME##_nfc_ac_rec_aux_data_ref_array[MAX_AUX_DATA_REF];           \
+    nfc_ac_rec_payload_desc_t NAME##_nfc_ac_rec_payload_desc =                                  \
     {                                                                                           \
         .cps = CPS,                                                                             \
         .carrier_data_ref = {CARR_DATA_REF_LEN, P_CARR_DATA_REF},                               \

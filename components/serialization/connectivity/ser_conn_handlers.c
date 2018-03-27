@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #include <string.h>
 #include "app_error.h"
 #include "app_scheduler.h"
@@ -46,7 +45,10 @@
 #include "ser_conn_event_encoder.h"
 #include "ser_conn_pkt_decoder.h"
 #include "ser_conn_dtm_cmd_decoder.h"
-
+#include "nrf_sdh.h"
+#ifdef BLE_STACK_SUPPORT_REQD
+#include "conn_ble_gap_sec_keys.h"
+#endif
 
 /** @file
  *
@@ -66,7 +68,20 @@ static ser_hal_transport_evt_rx_pkt_received_params_t m_rx_pkt_received_params;
 /** Indicator of received packet that should be process. */
 static bool m_rx_pkt_to_process = false;
 
+static ser_conn_on_no_mem_t m_on_no_mem_handler;
 
+void ser_conn_on_no_mem_handler_set(ser_conn_on_no_mem_t handler)
+{
+    m_on_no_mem_handler = handler;
+}
+
+void ser_conn_on_no_mem_handler(void)
+{
+    if (m_on_no_mem_handler)
+    {
+        m_on_no_mem_handler();
+    }
+}
 void ser_conn_hal_transport_event_handle(ser_hal_transport_evt_t event)
 {
     switch (event.evt_type)
@@ -139,7 +154,11 @@ uint32_t ser_conn_rx_process(void)
     return err_code;
 }
 
-void ser_conn_ble_event_handle(ble_evt_t * p_ble_evt)
+#ifdef BLE_STACK_SUPPORT_REQD
+
+NRF_SDH_BLE_OBSERVER(m_ble_observer, 0, ser_conn_ble_event_handle, NULL);
+
+void ser_conn_ble_event_handle(ble_evt_t const * p_ble_evt, void * p_context)
 {
     uint32_t err_code = NRF_SUCCESS;
 
@@ -148,15 +167,41 @@ void ser_conn_ble_event_handle(ble_evt_t * p_ble_evt)
      * encoding and sending every BLE event because sending a response on received packet has higher
      * priority than sending a BLE event. Solution for that is to put BLE events into application
      * scheduler queue to be processed at a later time. */
-    err_code = app_sched_event_put(p_ble_evt, sizeof (ble_evt_hdr_t) + p_ble_evt->header.evt_len,
+    err_code = app_sched_event_put(p_ble_evt, p_ble_evt->header.evt_len,
                                    ser_conn_ble_event_encoder);
     APP_ERROR_CHECK(err_code);
     uint16_t free_space = app_sched_queue_space_get();
     if (!free_space)
     {
         // Queue is full. Do not pull new events.
-        softdevice_handler_suspend();
+        nrf_sdh_suspend();
     }
 }
+#endif // BLE_STACK_SUPPORT_REQD
+
+#ifdef ANT_STACK_SUPPORT_REQD
+
+NRF_SDH_ANT_OBSERVER(m_ant_observer, 0, ser_conn_ant_event_handle, NULL);
+
+void ser_conn_ant_event_handle(ant_evt_t * p_ant_evt, void * p_context)
+{
+     uint32_t err_code = NRF_SUCCESS;
+
+    /* We can NOT encode and send ANT events here. SoftDevice handler implemented in
+     * softdevice_handler.c pull all available ANT events at once but we need to reschedule between
+     * encoding and sending every ANT event because sending a response on received packet has higher
+     * priority than sending an ANT event. Solution for that is to put ANT events into application
+     * scheduler queue to be processed at a later time. */
+    err_code = app_sched_event_put(p_ant_evt, sizeof (ant_evt_t),
+                                   ser_conn_ant_event_encoder);
+    APP_ERROR_CHECK(err_code);
+    uint16_t free_space = app_sched_queue_space_get();
+    if (!free_space)
+    {
+        // Queue is full. Do not pull new events.
+        nrf_sdh_suspend();
+    }
+}
+#endif // ANT_STACK_SUPPORT_REQD
 
 /** @} */

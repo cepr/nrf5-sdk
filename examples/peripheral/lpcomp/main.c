@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  * @defgroup nrf_lpcomp_example main.c
  * @{
@@ -71,9 +70,10 @@
 #include "app_error.h"
 #include "boards.h"
 
-#define NRF_LOG_MODULE_NAME "APP"
+
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 
 #define WAVE_ON_PIN_NUMBER 2
 
@@ -107,7 +107,7 @@ static void print_statistics(void)
     while (voltage_falls_detected)
     {
         voltage_falls_detected--;
-        NRF_LOG_INFO("#%d fall detected\r\n", (int)voltage_falls_total);
+        NRF_LOG_INFO("#%d fall detected", (int)voltage_falls_total);
     }
 }
 
@@ -131,7 +131,7 @@ static void lpcomp_init(void)
 
 int main(void)
 {
-    bsp_board_leds_init();
+    bsp_board_init(BSP_INIT_LEDS);
 
     nrf_gpio_cfg_output(WAVE_ON_PIN_NUMBER); // on this pin 2Hz wave will be generated
 
@@ -143,9 +143,11 @@ int main(void)
     uint32_t err_code = NRF_LOG_INIT(NULL);
     APP_ERROR_CHECK(err_code);
 
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
+
     lpcomp_init();
 
-    NRF_LOG_INFO("LPCOMP driver usage example\r\n");
+    NRF_LOG_INFO("LPCOMP driver usage example started.");
 
     while (true)
     {

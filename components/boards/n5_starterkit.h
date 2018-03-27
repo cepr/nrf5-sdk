@@ -48,7 +48,6 @@
  * ABOVE LIMITATIONS MAY NOT APPLY TO YOU.
  * 
  */
-
 #ifndef N5STARTERKIT_H
 #define N5STARTERKIT_H
 
@@ -120,16 +119,6 @@ extern "C" {
 #define TX_PIN_NUMBER  UART_PIN_DISCONNECTED
 #define CTS_PIN_NUMBER UART_PIN_DISCONNECTED
 #define RTS_PIN_NUMBER UART_PIN_DISCONNECTED
-
-// Low frequency clock source to be used by the SoftDevice
-#ifdef S210
-#define NRF_CLOCK_LFCLKSRC      NRF_CLOCK_LFCLKSRC_XTAL_50_PPM
-#else
-#define NRF_CLOCK_LFCLKSRC      {.source        = NRF_CLOCK_LF_SRC_XTAL,            \
-                                 .rc_ctiv       = 0,                                \
-                                 .rc_temp_ctiv  = 0,                                \
-                                 .xtal_accuracy = NRF_CLOCK_LF_XTAL_ACCURACY_50_PPM}
-#endif
 
 
 #ifdef __cplusplus

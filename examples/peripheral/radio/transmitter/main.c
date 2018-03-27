@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
 *
 * @defgroup nrf_dev_button_radio_tx_example_main main.c
@@ -60,12 +59,10 @@
 #include "bsp.h"
 #include "nordic_common.h"
 #include "nrf_error.h"
-#define NRF_LOG_MODULE_NAME "APP"
+
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
-
-#define APP_TIMER_PRESCALER      0                           /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_OP_QUEUE_SIZE  2                           /**< Size of timer operation queues. */
+#include "nrf_log_default_backends.h"
 
 static uint32_t                   packet;                    /**< Packet to transmit. */
 
@@ -90,7 +87,7 @@ void send_packet()
     }
 
     uint32_t err_code = bsp_indication_set(BSP_INDICATE_SENT_OK);
-    NRF_LOG_INFO("The packet was sent\r\n");
+    NRF_LOG_INFO("The packet was sent");
     APP_ERROR_CHECK(err_code);
 
     NRF_RADIO->EVENTS_DISABLED = 0U;
@@ -175,14 +172,16 @@ int main(void)
     uint32_t err_code = NRF_SUCCESS;
 
     clock_initialization();
-    APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_OP_QUEUE_SIZE, NULL);
+
+    err_code = app_timer_init();
+    APP_ERROR_CHECK(err_code);
 
     err_code = NRF_LOG_INIT(NULL);
     APP_ERROR_CHECK(err_code);
 
-    err_code = bsp_init(BSP_INIT_LED | BSP_INIT_BUTTONS,
-                        APP_TIMER_TICKS(100, APP_TIMER_PRESCALER),
-                        bsp_evt_handler);
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
+
+    err_code = bsp_init(BSP_INIT_LEDS | BSP_INIT_BUTTONS, bsp_evt_handler);
     APP_ERROR_CHECK(err_code);
 
     // Set radio configuration parameters
@@ -192,7 +191,8 @@ int main(void)
     NRF_RADIO->PACKETPTR = (uint32_t)&packet;
 
     err_code = bsp_indication_set(BSP_INDICATE_USER_STATE_OFF);
-    NRF_LOG_INFO("Press Any Button\r\n");
+    NRF_LOG_INFO("Radio transmitter example started.");
+    NRF_LOG_INFO("Press Any Button");
     APP_ERROR_CHECK(err_code);
 
     while (true)
@@ -200,7 +200,7 @@ int main(void)
         if (packet != 0)
         {
             send_packet();
-            NRF_LOG_INFO("The contents of the package was %u\r\n", (unsigned int)packet);
+            NRF_LOG_INFO("The contents of the package was %u", (unsigned int)packet);
             packet = 0;
         }
         NRF_LOG_FLUSH();

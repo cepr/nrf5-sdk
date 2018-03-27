@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,29 +37,29 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
+
 #ifndef NRF_DRV_USBD_H__
 #define NRF_DRV_USBD_H__
 
-#include "nrf_drv_common.h"
 #include "sdk_errors.h"
 #include "nrf_usbd.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include "app_util.h"
+#include "nrf_drv_usbd_errata.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
- * @defgroup nrf_drv_usbd USB Device raw IP HAL and driver
+ * @defgroup nrf_drv_usbd USB Device HAL and driver
  * @ingroup nrf_drivers
  * @brief @tagAPI52840 USB Device APIs.
  * @details The USB Device  HAL provides basic APIs for accessing
  * the registers of the USBD.
  * The USB Device driver provides APIs on a higher level.
- */
-
-/**
- * @ingroup  nrf_drv_usbd
- * @defgroup nrf_usbdraw_drv USB Device raw IP driver
  *
- * @brief @tagAPI52840 USB Device raw IP driver.
  * @{
  */
 
@@ -108,6 +108,13 @@
  * @sa nrf_usbd_isosplit_get
  */
 #define NRF_DRV_USBD_ISOSIZE 1024
+
+/**
+ * @brief The size of internal feeder buffer.
+ *
+ * @sa nrf_drv_usbd_feeder_buffer_get
+ */
+#define NRF_DRV_USBD_FEEDER_BUFFER_SIZE NRF_DRV_USBD_EPSIZE
 
 /**
  * @name Macros for creating endpoint identifiers
@@ -180,6 +187,7 @@ typedef enum
     NRF_DRV_USBD_EVT_RESET,      /**< Reset condition on USB bus detected */
     NRF_DRV_USBD_EVT_SUSPEND,    /**< This device should go to suspend mode now */
     NRF_DRV_USBD_EVT_RESUME,     /**< This device should resume from suspend now */
+    NRF_DRV_USBD_EVT_WUREQ,      /**< Wakeup request - the USBD peripheral is ready to generate WAKEUP signal after exiting low power mode. */
     NRF_DRV_USBD_EVT_SETUP,      /**< Setup frame received and decoded */
     NRF_DRV_USBD_EVT_EPTRANSFER, /**<
                                   * For Rx (OUT: Host->Device):
@@ -239,20 +247,6 @@ typedef struct
 }nrf_drv_usbd_evt_t;
 
 /**
- * @brief Helper macro to create endpoint transfer event
- */
-#define NRF_DRV_USBD_EP_TRANSFER_EVENT(name, endpont, ep_stat)          \
-    nrf_drv_usbd_evt_t name = {                                         \
-        NRF_DRV_USBD_EVT_EPTRANSFER,                                    \
-        .data = {                                                       \
-            .eptransfer = {                                             \
-                    .ep = endpont,                                      \
-                    .status = ep_stat                                   \
-            }                                                           \
-        }                                                               \
-    }
-
-/**
  * @brief USBD event callback function type.
  *
  * @param[in] p_event Event information structure.
@@ -260,34 +254,113 @@ typedef struct
 typedef void (*nrf_drv_usbd_event_handler_t)(nrf_drv_usbd_evt_t const * const p_event);
 
 /**
- * @brief The structure to be filled with the information about next transfer
+ * @brief Universal data pointer.
  *
- * When the next transfer is set as a buffer it would get a pointer to this
- * structure to fill it with required transfer data.
+ * Universal data pointer that can be used for any type of transfer.
+ */
+typedef union
+{
+    void const * tx; //!< Constant TX buffer pointer.
+    void * rx;       //!< Writable RX buffer pointer.
+    uint32_t ptr;    //!< Numeric value used internally by the library.
+}nrf_drv_usbd_data_ptr_t;
+
+/**
+ * @brief Structure to be filled with information about the next transfer.
+ *
+ * This is used mainly for transfer feeders and consumers.
+ * It describes a single endpoint transfer and therefore the size of the buffer
+ * can never be higher than the endpoint size.
  */
 typedef struct
 {
-    union
-    {
-        void const * tx; //!< Constant tx buffer pointer
-        void * rx;       //!< Writable rx buffer pointer
-        uint32_t ptr;    //!< Numeric value used internally by the library
-    }p_data;             //!< Union with available data pointers used by the library
-    size_t size;         //!< Size of the requested transfer
-}nrf_drv_usbd_transfer_t;
+    nrf_drv_usbd_data_ptr_t p_data; //!< Union with available data pointers used by the library.
+    size_t size;                    //!< Size of the requested transfer.
+}nrf_drv_usbd_ep_transfer_t;
 
 /**
- * @brief Helper macro for declaring IN transfer item (@ref nrf_drv_usbd_transfer_t)
+ * @brief Flags for the current transfer.
+ *
+ * Flags configured for the transfer that can be merged using the bitwise 'or' operator (|).
+ */
+typedef enum
+{
+    NRF_DRV_USBD_TRANSFER_ZLP_FLAG = 1U << 0, //!< Add a zero-length packet.
+}nrf_drv_usbd_transfer_flags_t;
+
+/**
+ * @brief Total transfer configuration.
+ *
+ * This structure is used to configure total transfer information.
+ * It is used by internal built-in feeders and consumers.
+ */
+typedef struct
+{
+    nrf_drv_usbd_data_ptr_t p_data; //!< Union with available data pointers used by the library.
+    size_t size;                    //!< Total size of the requested transfer.
+    uint32_t flags;                 //!< Transfer flags.
+                                    /**< Use the @ref nrf_drv_usbd_transfer_flags_t values. */
+}nrf_drv_usbd_transfer_t;
+
+
+/**
+ * @brief Auxiliary macro for declaring IN transfer description with flags.
+ *
+ * The base macro for creating transfers with any configuration option.
+ *
+ * @param name     Instance name.
+ * @param tx_buff  Buffer to transfer.
+ * @param tx_size  Transfer size.
+ * @param tx_flags Flags for the transfer (see @ref nrf_drv_usbd_transfer_flags_t).
+ *
+ * @return Configured variable with total transfer description.
+ */
+#define NRF_DRV_USBD_TRANSFER_IN_FLAGS(name, tx_buff, tx_size, tx_flags) \
+    const nrf_drv_usbd_transfer_t name = {                               \
+       .p_data = { .tx = (tx_buff)  },                                   \
+       .size = (tx_size),                                                \
+       .flags = (tx_flags)                                               \
+    }
+
+/**
+ * @brief Helper macro for declaring IN transfer description
+ *
+ * Normal transfer mode, no ZLP would be automatically generated.
+ *
+ * @sa nrf_drv_usbd_transfer_t
+ * @sa NRF_DRV_USBD_TRANSFER_IN_ZLP
  *
  * @param name    Instance name
  * @param tx_buff Buffer to transfer
  * @param tx_size Transfer size
- * */
-#define NRF_DRV_USBD_TRANSFER_IN(name, tx_buff, tx_size)        \
-    nrf_drv_usbd_transfer_t name = {                            \
-       .p_data = { .tx = (tx_buff)  },                          \
-       .size = (tx_size),                                       \
-    }
+ *
+ * @return Configured variable with total transfer description
+ *
+ */
+#define NRF_DRV_USBD_TRANSFER_IN(name, tx_buff, tx_size) \
+    NRF_DRV_USBD_TRANSFER_IN_FLAGS(name, tx_buff, tx_size, 0)
+
+/**
+ * @brief Helper macro for declaring IN transfer description
+ *
+ * ZLP mode - Zero Length Packet would be generated on the end of the transfer
+ * (always!).
+ *
+ * @sa nrf_drv_usbd_transfer_t
+ * @sa NRF_DRV_USBD_TRANSFER_IN
+ *
+ * @param name    Instance name
+ * @param tx_buff Buffer to transfer
+ * @param tx_size Transfer size
+ *
+ * @return Configured variable with total transfer description
+ */
+#define NRF_DRV_USBD_TRANSFER_IN_ZLP(name, tx_buff, tx_size) \
+    NRF_DRV_USBD_TRANSFER_IN_FLAGS(                          \
+        name,                                                \
+        tx_buff,                                             \
+        tx_size,                                             \
+        NRF_DRV_USBD_TRANSFER_ZLP_FLAG)
 
 /**
  * @brief Helper macro for declaring OUT transfer item (@ref nrf_drv_usbd_transfer_t)
@@ -297,34 +370,92 @@ typedef struct
  * @param rx_size Transfer size
  * */
 #define NRF_DRV_USBD_TRANSFER_OUT(name, rx_buff, rx_size)       \
-    nrf_drv_usbd_transfer_t name = {                            \
+    const nrf_drv_usbd_transfer_t name = {                      \
        .p_data = { .rx = (rx_buff)  },                          \
        .size = (rx_size),                                       \
+       .flags = 0                                               \
     }
 
 /**
- * @brief USBD event callback for the endpoint
+ * @brief USBD transfer feeder.
  *
- * @param[out] p_next   Structure with the data for the next transfer to be filled.
- *                      Required only if the function returns true.
- * @param[in]  p_contex Contex variable configured with the endpoint.
+ * Pointer for a transfer feeder.
+ * Transfer feeder is a feedback function used to prepare a single
+ * TX (Device->Host) endpoint transfer.
  *
- * @retval false Nothing more to transfer
- * @retval true  Settings to the next transfer filled into @c p_next.
+ * The transfers provided by the feeder must be simple:
+ * - The size of the transfer provided by this function is limited to a single endpoint buffer.
+ *   Bigger transfers are not handled automatically in this case.
+ * - Flash transfers are not automatically supported- you must copy them to the RAM buffer before.
+ *
+ * @note
+ * This function may use @ref nrf_drv_usbd_feeder_buffer_get to gain a temporary buffer
+ * that can be used to prepare transfer.
+ *
+ * @param[out]    p_next    Structure with the data for the next transfer to be filled.
+ *                          Required only if the function returns true.
+ * @param[in,out] p_context Context variable configured with the transfer.
+ * @param[in]     ep_size   The endpoint size.
+ *
+ * @retval false The current transfer is the last one - you do not need to call
+ *               the function again.
+ * @retval true  There is more data to be prepared and when the current transfer
+ *               finishes, the feeder function is expected to be called again.
  */
-typedef bool (*nrf_drv_usbd_next_transfer_handler_t)(nrf_drv_usbd_transfer_t * p_next, void * p_context);
+typedef bool (*nrf_drv_usbd_feeder_t)(
+    nrf_drv_usbd_ep_transfer_t * p_next,
+    void * p_context,
+    size_t ep_size);
 
 /**
- * @brief USBD transfer callback structure
+ * @brief USBD transfer consumer.
  *
- * Structure used to setup the callback for any type of the transfer
+ * Pointer for a transfer consumer.
+ * Transfer consumer is a feedback function used to prepare a single
+ * RX (Host->Device) endpoint transfer.
+ *
+ * The transfer must provide a buffer big enough to fit the whole data from the endpoint.
+ * Otherwise, the NRF_USBD_EP_OVERLOAD event is generated.
+ *
+ * @param[out]    p_next    Structure with the data for the next transfer to be filled.
+ *                          Required only if the function returns true.
+ * @param[in,out] p_context Context variable configured with the transfer.
+ * @param[in]     ep_size   The endpoint size.
+ * @param[in]     data_size Number of received bytes in the endpoint buffer.
+ *
+ * @retval false Current transfer is the last one - you do not need to call
+ *               the function again.
+ * @retval true  There is more data to be prepared and when current transfer
+ *               finishes, the feeder function is expected to be called again.
+ */
+typedef bool (*nrf_drv_usbd_consumer_t)(
+    nrf_drv_usbd_ep_transfer_t * p_next,
+    void * p_context,
+    size_t ep_size,
+    size_t data_size);
+
+/**
+ * @brief Universal transfer handler.
+ *
+ * Union with feeder and consumer function pointer.
+ */
+typedef union
+{
+    nrf_drv_usbd_feeder_t   feeder;   //!< Feeder function pointer.
+    nrf_drv_usbd_consumer_t consumer; //!< Consumer function pointer.
+}nrf_drv_usbd_handler_t;
+
+/**
+ * @brief USBD transfer descriptor.
+ *
+ * Universal structure that may hold the setup for callback configuration for
+ * IN or OUT type of the transfer.
  */
 typedef struct
 {
-    nrf_drv_usbd_next_transfer_handler_t handler; //!< The event handler to be called when buffer is ready.
-    void * p_context;                             //!< Context pointer to be send to every called event.
-}nrf_drv_usbd_transfer_handler_desc_t;
-
+    nrf_drv_usbd_handler_t   handler;   //!< Handler for the current transfer, function pointer.
+    void                   * p_context; //!< Context for the transfer handler.
+}nrf_drv_usbd_handler_desc_t;
 
 /**
  * @brief Setup packet structure
@@ -356,7 +487,11 @@ ret_code_t nrf_drv_usbd_uninit(void);
  * @brief Enable the USBD port
  *
  * After calling this function USBD peripheral would be enabled.
- * It means that High Frequency clock would be requested and USB LDO would be enabled.
+ * The USB LDO would be enabled.
+ * Enabled USBD peripheral would request HFCLK.
+ * This function does not enable external oscillator, so if it is not enabled by other part of the
+ * program after enabling USBD driver HFINT would be used for the USBD peripheral.
+ * It is perfectly fine until USBD is started. See @ref nrf_drv_usbd_start.
  *
  * In normal situation this function should be called in reaction to USBDETECTED
  * event from POWER peripheral.
@@ -386,6 +521,8 @@ void nrf_drv_usbd_disable(void);
  * Call this function when USBD power LDO regulator is ready - on USBPWRRDY event
  * from POWER peripheral.
  *
+ * Before USBD interrupts are enabled, external HFXO is requested.
+ *
  * @param enable_sof The flag that is used to enable SOF processing.
  *                   If it is false, SOF interrupt is left disabled and will not be generated.
  *                   This improves power saving if SOF is not required.
@@ -401,6 +538,8 @@ void nrf_drv_usbd_start(bool enable_sof);
  * @brief Stop USB functionality
  *
  * This function disables USBD pull-up and interrupts.
+ *
+ * The HFXO request is released in this function.
  *
  * @note
  * This function can also be used to logically disconnect USB from the HOST that
@@ -434,6 +573,92 @@ bool nrf_drv_usbd_is_enabled(void);
 bool nrf_drv_usbd_is_started(void);
 
 /**
+ * @brief Suspend USBD operation
+ *
+ * The USBD peripheral is forced to go into the low power mode.
+ * The function has to be called in the reaction to @ref NRF_DRV_USBD_EVT_SUSPEND event
+ * when the firmware is ready.
+ *
+ * After successful call of this function most of the USBD registers would be unavailable.
+ *
+ * @note Check returned value for the feedback if suspending was successful.
+ *
+ * @retval true  USBD peripheral successfully suspended
+ * @retval false USBD peripheral was not suspended due to resume detection.
+ *
+ */
+bool nrf_drv_usbd_suspend(void);
+
+/**
+ * @brief Start wake up procedure
+ *
+ * The USBD peripheral is forced to quit the low power mode.
+ * After calling this function all the USBD registers would be available.
+ *
+ * The hardware starts measuring time when wake up is possible.
+ * This may take 0-5&nbsp;ms depending on how long the SUSPEND state was kept on the USB line.
+
+ * When NRF_DRV_USBD_EVT_WUREQ event is generated it means that Wake Up signaling has just been
+ * started on the USB lines.
+ *
+ * @note Do not expect only @ref NRF_DRV_USBD_EVT_WUREQ event.
+ *       There always may appear @ref NRF_DRV_USBD_EVT_RESUME event.
+ * @note NRF_DRV_USBD_EVT_WUREQ event means that Remote WakeUp signal
+ *       has just begun to be generated.
+ *       This may take up to 20&nbsp;ms for the bus to become active.
+ *
+ * @retval true WakeUp procedure started.
+ * @retval false No WakeUp procedure started - bus is already active.
+ */
+bool nrf_drv_usbd_wakeup_req(void);
+
+/**
+ * @brief Check if USBD is in SUSPEND mode
+ *
+ * @note This is the information about peripheral itself, not about the bus state.
+ *
+ * @retval true  USBD peripheral is suspended
+ * @retval false USBD peripheral is active
+ */
+bool nrf_drv_usbd_suspend_check(void);
+
+/**
+ * @brief Enable only interrupts that should be processed in SUSPEND mode
+ *
+ * Auxiliary function to help with SUSPEND mode integration.
+ * It enables only the interrupts that can be properly processed without stable HFCLK.
+ *
+ * Normally all the interrupts are enabled.
+ * Use this function to suspend interrupt processing that may require stable HFCLK until the
+ * clock is enabled.
+ *
+ * @sa nrf_drv_usbd_active_irq_config
+ */
+void nrf_drv_usbd_suspend_irq_config(void);
+
+/**
+ * @brief Default active interrupt configuration
+ *
+ * Default interrupt configuration.
+ * Use in a pair with @ref nrf_drv_usbd_active_irq_config.
+ *
+ * @sa nrf_drv_usbd_suspend_irq_config
+ */
+void nrf_drv_usbd_active_irq_config(void);
+
+/**
+ * @brief Check the bus state
+ *
+ * This function checks if the bus state is suspended
+ *
+ * @note The value returned by this function changes on SUSPEND and RESUME event processing.
+ *
+ * @retval true  USBD bus is suspended
+ * @retval false USBD bus is active
+ */
+bool nrf_drv_usbd_bus_suspend_check(void);
+
+/**
  * @brief Configure packet size that should be supported by the endpoint
  *
  * The real endpoint buffer size is always the same.
@@ -460,6 +685,16 @@ void nrf_drv_usbd_ep_max_packet_size_set(nrf_drv_usbd_ep_t ep, uint16_t size);
 uint16_t nrf_drv_usbd_ep_max_packet_size_get(nrf_drv_usbd_ep_t ep);
 
 /**
+ * @brief Check if the selected endpoint is enabled.
+ *
+ * @param ep Endpoint number to check.
+ *
+ * @retval true  Endpoint is enabled.
+ * @retval false Endpoint is disabled.
+ */
+bool nrf_drv_usbd_ep_enable_check(nrf_drv_usbd_ep_t ep);
+
+/**
  * @brief Enable selected endpoint
  *
  * This function enables endpoint itself and its interrupts.
@@ -481,6 +716,13 @@ void nrf_drv_usbd_ep_enable(nrf_drv_usbd_ep_t ep);
 void nrf_drv_usbd_ep_disable(nrf_drv_usbd_ep_t ep);
 
 /**
+ * @brief Disable all endpoints except for EP0
+ *
+ * Disable all endpoints that can be disabled in USB device while it is still active.
+ */
+void nrf_drv_usbd_ep_default_config(void);
+
+/**
  * @brief Start sending data over endpoint
  *
  * Function initializes endpoint transmission.
@@ -494,8 +736,6 @@ void nrf_drv_usbd_ep_disable(nrf_drv_usbd_ep_t ep);
  *                       For IN endpoint sending would be initiated.
  *                       For OUT endpoint receiving would be initiated.
  * @param[in] p_transfer
- * @param[in] p_handler  Description of transfer handler to be called when buffer is ready.
- *                       Can be NULL when not required by the caller.
  *
  * @retval NRF_ERROR_BUSY          Selected endpoint is pending.
  * @retval NRF_ERROR_INVALID_ADDR  Unexpected transfer on EPIN0 or EPOUT0.
@@ -504,25 +744,61 @@ void nrf_drv_usbd_ep_disable(nrf_drv_usbd_ep_t ep);
  */
 ret_code_t nrf_drv_usbd_ep_transfer(
     nrf_drv_usbd_ep_t                                  ep,
-    nrf_drv_usbd_transfer_t              const * const p_transfer,
-    nrf_drv_usbd_transfer_handler_desc_t const * const p_handler);
+    nrf_drv_usbd_transfer_t              const * const p_transfer);
 
 /**
- * @brief Get the information about last finished transfer
+ * @brief Start sending data over the endpoint using the transfer handler function.
+ *
+ * This function initializes an endpoint transmission.
+ * Just before data is transmitted, the transfer handler
+ * is called and it prepares a data chunk.
+ *
+ * @param[in] ep    Endpoint number.
+ *                  For an IN endpoint, sending is initiated.
+ *                  For an OUT endpoint, receiving is initiated.
+ * @param p_handler Transfer handler - feeder for IN direction and consumer for
+ *                  OUT direction.
+ *
+ * @retval NRF_ERROR_BUSY          Selected endpoint is pending.
+ * @retval NRF_ERROR_INVALID_ADDR  Unexpected transfer on EPIN0 or EPOUT0.
+ * @retval NRF_ERROR_FORBIDDEN     Endpoint stalled.
+ * @retval NRF_SUCCESS             Transfer queued or started.
+ */
+ret_code_t nrf_drv_usbd_ep_handled_transfer(
+    nrf_drv_usbd_ep_t                         ep,
+    nrf_drv_usbd_handler_desc_t const * const p_handler);
+
+/**
+ * @brief Get the temporary buffer to be used by the feeder.
+ *
+ * This buffer is used for TX transfers and it can be reused automatically
+ * when the transfer is finished.
+ * Use it for transfer preparation.
+ *
+ * May be used inside the feeder configured in @ref nrf_drv_usbd_ep_handled_transfer.
+ *
+ * @return Pointer to the buffer that can be used temporarily.
+ *
+ * @sa NRF_DRV_USBD_FEEDER_BUFFER_SIZE
+ */
+void * nrf_drv_usbd_feeder_buffer_get(void);
+
+/**
+ * @brief Get the information about last finished or current transfer
  *
  * Function returns the status of the last buffer set for transfer on selected endpoint.
  * The status considers last buffer set by @ref nrf_drv_usbd_ep_transfer function or
  * by transfer callback function.
  *
- * @param[in]  ep         Endpoint number.
- * @param[out] p_transfer Structure that would be filled by transfer details: buffer pointer and number of bytes received.
+ * @param[in]  ep     Endpoint number.
+ * @param[out] p_size Information about the current/last transfer size.
  *
  * @retval NRF_SUCCESS         Transfer already finished
  * @retval NRF_ERROR_BUSY      Ongoing transfer
  * @retval NRF_ERROR_DATA_SIZE Too much of data received that cannot fit into buffer and cannot be splited into chunks.
  *                             This may happen if buffer size is not a multiplication of endpoint buffer size.
  */
-ret_code_t nrf_drv_usbd_ep_status_get(nrf_drv_usbd_ep_t ep, nrf_drv_usbd_transfer_t * p_transfer);
+ret_code_t nrf_drv_usbd_ep_status_get(nrf_drv_usbd_ep_t ep, size_t * p_size);
 
 /**
  * @brief Get number of received bytes
@@ -590,6 +866,13 @@ void nrf_drv_usbd_ep_stall_clear(nrf_drv_usbd_ep_t ep);
 bool nrf_drv_usbd_ep_stall_check(nrf_drv_usbd_ep_t ep);
 
 /**
+ * @brief Clear current endpoint data toggle
+ *
+ * @param ep Endpoint number to clear
+ */
+void nrf_drv_usbd_ep_dtoggle_clear(nrf_drv_usbd_ep_t ep);
+
+/**
  * @brief Get parsed setup data
  *
  * Function fills the parsed setup data structure.
@@ -614,9 +897,6 @@ void nrf_drv_usbd_setup_data_clear(void);
  *
  * This function acknowledges setup when SETUP command was received and processed.
  * It has to be called if no data respond for the SETUP command is sent.
- *
- * When there is any data transmission after SETUP command the data transmission
- * itself would clear the endpoint.
  */
 void nrf_drv_usbd_setup_clear(void);
 
@@ -636,7 +916,7 @@ void nrf_drv_usbd_setup_stall(void);
 * @endcode
 * This function would check it again, but it makes it inside critical section.
 */
-void usbd_drv_ep_abort(nrf_drv_usbd_ep_t ep);
+void nrf_drv_usbd_ep_abort(nrf_drv_usbd_ep_t ep);
 
 /**
  * @brief Get the information about expected transfer SETUP data direction
@@ -654,6 +934,10 @@ nrf_drv_usbd_ep_t nrf_drv_usbd_last_setup_dir_get(void);
  * @param[in] ep  OUT endpoint ID
  */
 void nrf_drv_usbd_transfer_out_drop(nrf_drv_usbd_ep_t ep);
+
+#ifdef __cplusplus
+}
+#endif
 
 /** @} */
 #endif /* NRF_DRV_USBD_H__ */

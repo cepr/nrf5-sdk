@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
- 
 /* Disclaimer: This client implementation of the Apple Notification Center Service can and will be changed at any time by Nordic Semiconductor ASA.
  * Server implementations such as the ones found in iOS can be changed at any time by Apple and may cause this client implementation to stop working.
  */
@@ -47,8 +46,8 @@
  #include "sdk_macros.h"
  #include "nrf_log.h"
  #include "string.h"
- 
- 
+
+
 static tx_message_t m_tx_buffer[TX_BUFFER_SIZE];                           /**< Transmit buffer for messages to be transmitted to the Notification Provider. */
 static uint32_t     m_tx_insert_index = 0;                                 /**< Current index in the transmit buffer where the next message should be inserted. */
 static uint32_t     m_tx_index        = 0;                                 /**< Current index in the transmit buffer from where the next message to be transmitted resides. */
@@ -64,10 +63,10 @@ void tx_buffer_insert(tx_message_t * p_msg)
 {
 
     memset(&(m_tx_buffer[m_tx_insert_index]), 0, sizeof(m_tx_buffer)/sizeof(tx_message_t));
-    
+
     m_tx_buffer[m_tx_insert_index].conn_handle = p_msg->conn_handle;
     m_tx_buffer[m_tx_insert_index].type        = p_msg->type;
-    
+
     m_tx_buffer[m_tx_insert_index].req.write_req.gattc_params.handle   = p_msg->req.write_req.gattc_params.handle;
     m_tx_buffer[m_tx_insert_index].req.write_req.gattc_params.len      = p_msg->req.write_req.gattc_params.len;
     m_tx_buffer[m_tx_insert_index].req.write_req.gattc_params.write_op = p_msg->req.write_req.gattc_params.write_op;
@@ -75,7 +74,7 @@ void tx_buffer_insert(tx_message_t * p_msg)
     m_tx_buffer[m_tx_insert_index].req.write_req.gattc_params.p_value  = m_tx_buffer[m_tx_insert_index].req.write_req.gattc_value;
     m_tx_buffer[m_tx_insert_index].req.write_req.gattc_params.offset   = p_msg->req.write_req.gattc_params.offset;
 
-    if(p_msg->type == WRITE_REQ)
+    if (p_msg->type == WRITE_REQ)
     {
         memcpy(m_tx_buffer[m_tx_insert_index].req.write_req.gattc_value,
                p_msg->req.write_req.gattc_value,

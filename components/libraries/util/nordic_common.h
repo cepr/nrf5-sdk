@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2008 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2008 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  * @brief Common defines and macros for firmware developed by Nordic Semiconductor.
  */
@@ -73,12 +72,16 @@ extern "C" {
  * And given parameter would be connected with @c _ENABLED postfix directly
  * without evaluating its value.
  */
-//lint -e491 // Suppers warning 491 "non-standard use of 'defined' preprocessor operator"
+//lint -emacro(491,NRF_MODULE_ENABLED) // Suppers warning 491 "non-standard use of 'defined' preprocessor operator"
+#ifdef NRF_MODULE_ENABLE_ALL
+#warning "Do not use NRF_MODULE_ENABLE_ALL for real builds."
+#define NRF_MODULE_ENABLED(module) 1
+#else
 #define NRF_MODULE_ENABLED(module) \
     ((defined(module ## _ENABLED) && (module ## _ENABLED)) ? 1 : 0)
-
+#endif
 /** The upper 8 bits of a 32 bit value */
-//lint -emacro(572,MSB) // Suppress warning 572 "Excessive shift value"
+//lint -emacro(572,MSB_32) // Suppress warning 572 "Excessive shift value"
 #define MSB_32(a) (((a) & 0xFF000000) >> 24)
 /** The lower 8 bits (of a 32 bit value) */
 #define LSB_32(a) ((a) & 0x000000FF)
@@ -133,10 +136,10 @@ extern "C" {
 /** Auxiliary macro used by @ref CONCAT_3 */
 #define CONCAT_3_(p1, p2, p3) p1##p2##p3
 
-#define NUM_TO_STR_INTERNAL(val) #val
-/** Converts numeric value to string.
+#define STRINGIFY_(val) #val
+/** Converts a macro argument into a character constant.
  */
-#define NUM_TO_STR(val) NUM_TO_STR_INTERNAL(val)
+#define STRINGIFY(val)  STRINGIFY_(val)
 
 /** Counts number of elements inside the array
  */
@@ -147,7 +150,7 @@ extern "C" {
  * @param[in] W  Word whose bit is being set.
  * @param[in] B  Bit number in the word to be set.
  */
-#define SET_BIT(W,B)  ((W) |= (uint32_t)(1U << (B)))
+#define SET_BIT(W, B)  ((W) |= (uint32_t)(1U << (B)))
 
 
 /**@brief Clears a bit in the uint32 word.
@@ -155,7 +158,7 @@ extern "C" {
  * @param[in] W   Word whose bit is to be cleared.
  * @param[in] B   Bit number in the word to be cleared.
  */
-#define CLR_BIT(W, B) ((W) &= (~((uint32_t)1 << (B))))
+#define CLR_BIT(W, B) ((W) &= (~(uint32_t)(1U << (B))))
 
 
 /**@brief Checks if a bit is set.
@@ -166,7 +169,7 @@ extern "C" {
  * @retval 1 if bit is set.
  * @retval 0 if bit is not set.
  */
-#define IS_SET(W,B) (((W) >> (B)) & 1)
+#define IS_SET(W, B) (((W) >> (B)) & 1)
 
 #define BIT_0 0x01 /**< The value of bit 0 */
 #define BIT_1 0x02 /**< The value of bit 1 */

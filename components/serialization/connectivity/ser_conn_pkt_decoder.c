@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,12 +37,10 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #include <stdint.h>
 #include <string.h>
 #include "nordic_common.h"
 #include "app_error.h"
-#include "softdevice_handler.h"
 #include "ble_serialization.h"
 #include "ser_config.h"
 #include "ser_hal_transport.h"
@@ -52,9 +50,9 @@
 #include "ser_conn_reset_cmd_decoder.h"
 #include "ser_dbg_sd_str.h"
 
-#define NRF_LOG_MODULE_NAME "SER_CONN"
+#define NRF_LOG_MODULE_NAME ser_conn
 #include "nrf_log.h"
-
+NRF_LOG_MODULE_REGISTER();
 
 uint32_t ser_conn_received_pkt_process(
     ser_hal_transport_evt_rx_pkt_received_params_t * p_rx_pkt_params)
@@ -67,11 +65,15 @@ uint32_t ser_conn_received_pkt_process(
         uint8_t * p_command   = &p_rx_pkt_params->p_buffer[SER_PKT_OP_CODE_POS];
         uint16_t  command_len = p_rx_pkt_params->num_of_bytes - SER_PKT_TYPE_SIZE;
 
-        NRF_LOG_DEBUG("[SD_CALL]:%s\r\n",
+        NRF_LOG_DEBUG("[SD_CALL]:%s",
             (uint32_t)ser_dbg_sd_call_str_get(*p_command));
 
         switch (p_rx_pkt_params->p_buffer[SER_PKT_TYPE_POS])
         {
+        #if defined(ANT_STACK_SUPPORT_REQD)
+            case SER_PKT_TYPE_ANT_CMD:
+            //!! INTENTIONAL FALLTHROUGH
+        #endif
             case SER_PKT_TYPE_CMD:
             {
                 err_code = ser_conn_command_process(p_command, command_len);
@@ -109,6 +111,7 @@ uint32_t ser_conn_received_pkt_process(
         }
         else
         {
+            NRF_LOG_ERROR("Command processing error:%d", err_code);
             err_code = NRF_ERROR_INTERNAL;
         }
     }

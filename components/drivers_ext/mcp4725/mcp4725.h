@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #ifndef MCP4725_H
 #define MCP4725_H
 
@@ -61,12 +60,20 @@ extern "C" {
 * @brief MCP4725 digital DAC driver.
 */
 
+typedef struct
+{
+    uint8_t scl_pin;
+    uint8_t sda_pin;
+}mcp4725_pins_config_t;
+
 /**
  * @brief Function for setting up the driver.
  *
- * @return Values returned by @ref nrf_drv_twi_init.
+ * @param[in] p_pins_config Pointer to structere holding pins numbers to be used by TWI.
+ *
+ * @return Values returned by @ref nrfx_twi_init.
  */
-ret_code_t mcp4725_setup(void);
+ret_code_t mcp4725_setup(mcp4725_pins_config_t const * p_pins_config);
 
 
 /**
@@ -75,7 +82,7 @@ ret_code_t mcp4725_setup(void);
  * @param[in] val               12-bit value. Base on it voltage is set (Vout = (val/4095) * Vcc).
  * @param[in] write_eeprom      Defines if value will be written to DAC only or to EEPROM memmory also.
  *
- * @return Values returned by @ref nrf_drv_twi_tx.
+ * @return Values returned by @ref nrfx_twi_tx.
  */
 ret_code_t mcp4725_set_voltage(uint16_t val, bool write_eeprom);
 

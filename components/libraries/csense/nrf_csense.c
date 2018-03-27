@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -38,31 +38,34 @@
  * 
  */
 #include "sdk_common.h"
+
 #if NRF_MODULE_ENABLED(NRF_CSENSE)
+
+#include <string.h>
+
+#include <nrfx.h>
 #include "nrf_csense.h"
 #include "nrf_peripherals.h"
-#include "string.h"
 #include "nrf_assert.h"
 
-#if defined(__CORTEX_M) && (__CORTEX_M < 4)
-#ifndef ARM_MATH_CM0PLUS
-#define ARM_MATH_CM0PLUS
-#endif
-/*lint -save -e689 */
-#include "arm_math.h"
-/*lint -restore */
+#if     defined(__CC_ARM)
+#elif   defined(__ICCARM__)
+#elif   defined(__GNUC__)
+    #ifndef __CLZ
+        #define __CLZ(x)    __builtin_clz(x)
+    #endif
 #endif
 
 APP_TIMER_DEF(nrf_csense_timer);
 
 typedef struct
 {
-    nrf_csense_event_handler_t    event_handler;                        //!< Event handler for module.
-    nrf_drv_state_t               state;                                //!< State of module.
-    uint32_t                      ticks;                                //!< Timeout ticks of app_timer instance controlling csense module.
-    uint16_t                      raw_analog_values[MAX_ANALOG_INPUTS]; //!< Raw values of measurements.
-    uint8_t                       enabled_analog_channels_mask;         //!< Mask of enabled channels.
-}nrf_csense_t;
+    nrf_csense_event_handler_t  event_handler;                        //!< Event handler for module.
+    nrfx_drv_state_t            state;                                //!< State of module.
+    uint32_t                    ticks;                                //!< Timeout ticks of app_timer instance controlling csense module.
+    uint16_t                    raw_analog_values[MAX_ANALOG_INPUTS]; //!< Raw values of measurements.
+    uint8_t                     enabled_analog_channels_mask;         //!< Mask of enabled channels.
+} nrf_csense_t;
 
 /* Module instance. */
 static nrf_csense_t m_nrf_csense;
@@ -76,12 +79,12 @@ static uint16_t m_values_buffer[NRF_CSENSE_MAX_PADS_NUMBER];
 /**
  * @brief Function for handling time-outs.
  *
- * @param[in] p_context             General purpose pointer. Will be passed to the time-out handler
- *                                  when the timer expires.
+ * @param[in] p_context     General purpose pointer. Will be passed to the time-out handler
+ *                          when the timer expires.
  */
 static void csense_timer_handler(void * p_context)
 {
-    if (m_nrf_csense.state != NRF_DRV_STATE_POWERED_ON)
+    if (m_nrf_csense.state != NRFX_DRV_STATE_POWERED_ON)
     {
         return;
     }
@@ -96,11 +99,11 @@ static void csense_timer_handler(void * p_context)
 /**
  * @brief Function for updating maximum or minimum value.
  *
- * @param [in] p_instance                           Pointer to csense instance.
- * @param [in] p_pad                                Pointer to pad which should be checked for minimum or maximum value.
+ * @param [in] p_instance   Pointer to csense instance.
+ * @param [in] p_pad        Pointer to pad which should be checked for minimum or maximum value.
  */
 __STATIC_INLINE void min_or_max_update(nrf_csense_instance_t const * p_instance,
-                                         nrf_csense_pad_t            * p_pad)
+                                       nrf_csense_pad_t            * p_pad)
 {
     uint16_t val = m_nrf_csense.raw_analog_values[p_pad->analog_input_number];
 
@@ -121,8 +124,8 @@ __STATIC_INLINE void min_or_max_update(nrf_csense_instance_t const * p_instance,
  *
  * @note This function help to self calibrate the pads.
  *
- * @param [in] p_instance                           Pointer to csense instance.
- * @param [in] p_pad                                Pointer to pad to calculate ratio for.
+ * @param [in] p_instance   Pointer to csense instance.
+ * @param [in] p_pad        Pointer to pad to calculate ratio for.
  *
  * @return Difference between maximum and minimum values read on pads or 0 if minimum is bigger than maximum.
  *
@@ -147,16 +150,16 @@ __STATIC_INLINE uint16_t ratio_calculate(nrf_csense_instance_t const * p_instanc
 /**
  * @brief Function for calculating step.
  *
- * Function calculates step for slider basing on index of touched pads and values measured on them and neighboring pads.
+ * Function calculates step for slider basing on index of touched pads and values measured on
+ * them and neighboring pads.
  *
- * @param[in] p_instance                            Pointer to csense instance.
- * @param[in] pad_index_1                           Index of first pad.
- * @param[in] pad_index_1                           Index of second pad if 2 were touched.
+ * @param[in] p_instance    Pointer to csense instance.
+ * @param[in] pad_index     Index of the pad.
  *
  * @return Detected touched step.
  */
 static uint16_t calculate_step(nrf_csense_instance_t * p_instance,
-                                uint8_t                 pad_index)
+                               uint8_t                 pad_index)
 {
     uint16_t step = 0;
     uint32_t values_sum;
@@ -280,13 +283,13 @@ static uint16_t find_touched_pad(nrf_csense_instance_t const * p_instance,
 /**
  * @brief Function for finding touched step.
  *
- * @param [in] instance                             Pointer to csense instance.
+ * @param [in] instance     Pointer to csense instance.
  *
  * @return Detected touched step.
  */
 static uint16_t find_touched_step(nrf_csense_instance_t * p_instance)
 {
-    uint32_t  touched_mask = 0;
+    uint32_t touched_mask = 0;
     uint16_t pad          = 0;
     uint16_t step;
 
@@ -436,10 +439,10 @@ static void csense_event_handler(nrf_drv_csense_evt_t * p_event_struct)
 
 
 ret_code_t nrf_csense_init(nrf_csense_event_handler_t event_handler,
-                                  uint32_t                      ticks)
+                           uint32_t                   ticks)
 {
     ASSERT(event_handler != NULL);
-    ASSERT(m_nrf_csense.state == NRF_DRV_STATE_UNINITIALIZED);
+    ASSERT(m_nrf_csense.state == NRFX_DRV_STATE_UNINITIALIZED);
 
     ret_code_t err_code;
 
@@ -464,7 +467,7 @@ ret_code_t nrf_csense_init(nrf_csense_event_handler_t event_handler,
         return err_code;
     }
 
-    m_nrf_csense.state = NRF_DRV_STATE_INITIALIZED;
+    m_nrf_csense.state = NRFX_DRV_STATE_INITIALIZED;
 
     return NRF_SUCCESS;
 }
@@ -472,7 +475,7 @@ ret_code_t nrf_csense_init(nrf_csense_event_handler_t event_handler,
 
 ret_code_t nrf_csense_uninit(void)
 {
-    ASSERT(m_nrf_csense.state != NRF_DRV_STATE_UNINITIALIZED);
+    ASSERT(m_nrf_csense.state != NRFX_DRV_STATE_UNINITIALIZED);
 
     ret_code_t err_code;
     nrf_csense_instance_t ** pp_instance = &mp_nrf_csense_instance_head;
@@ -501,7 +504,7 @@ ret_code_t nrf_csense_uninit(void)
 
     memset((void *)&m_nrf_csense, 0, sizeof(nrf_csense_t));
 
-    m_nrf_csense.state = NRF_DRV_STATE_UNINITIALIZED;
+    m_nrf_csense.state = NRFX_DRV_STATE_UNINITIALIZED;
 
 
     return NRF_SUCCESS;
@@ -509,7 +512,7 @@ ret_code_t nrf_csense_uninit(void)
 
 ret_code_t nrf_csense_add(nrf_csense_instance_t * const p_instance)
 {
-    ASSERT(m_nrf_csense.state != NRF_DRV_STATE_UNINITIALIZED);
+    ASSERT(m_nrf_csense.state != NRFX_DRV_STATE_UNINITIALIZED);
     ASSERT(p_instance->p_next_instance == NULL);
     ASSERT(p_instance != NULL);
 
@@ -531,7 +534,7 @@ ret_code_t nrf_csense_add(nrf_csense_instance_t * const p_instance)
 
 ret_code_t nrf_csense_enable(nrf_csense_instance_t * const p_instance)
 {
-    ASSERT(m_nrf_csense.state != NRF_DRV_STATE_UNINITIALIZED);
+    ASSERT(m_nrf_csense.state != NRFX_DRV_STATE_UNINITIALIZED);
     ASSERT(p_instance != NULL);
 
     ret_code_t               err_code;
@@ -553,14 +556,15 @@ ret_code_t nrf_csense_enable(nrf_csense_instance_t * const p_instance)
     {
         p_instance->min_max[p_pad->pad_index].min_value = UINT16_MAX;
 
-        if ((m_nrf_csense.enabled_analog_channels_mask & (1UL << (p_pad->analog_input_number))) == 0) // If channel was already enabled skip it.
+         // If channel was already enabled skip it.
+        if ((m_nrf_csense.enabled_analog_channels_mask & (1UL << (p_pad->analog_input_number))) == 0)
         {
-            analog_channels_mask                        |= (1UL << (p_pad->analog_input_number));
-            m_nrf_csense.enabled_analog_channels_mask      |= (1UL << (p_pad->analog_input_number));
+            analog_channels_mask                      |= (1UL << (p_pad->analog_input_number));
+            m_nrf_csense.enabled_analog_channels_mask |= (1UL << (p_pad->analog_input_number));
         }
     }
 
-    m_nrf_csense.state = NRF_DRV_STATE_POWERED_ON;
+    m_nrf_csense.state = NRFX_DRV_STATE_POWERED_ON;
     nrf_drv_csense_channels_enable(analog_channels_mask);
 
     return NRF_SUCCESS;
@@ -569,13 +573,13 @@ ret_code_t nrf_csense_enable(nrf_csense_instance_t * const p_instance)
 
 ret_code_t nrf_csense_disable(nrf_csense_instance_t * const p_instance)
 {
-    ASSERT(m_nrf_csense.state == NRF_DRV_STATE_POWERED_ON);
+    ASSERT(m_nrf_csense.state == NRFX_DRV_STATE_POWERED_ON);
 
-    ret_code_t                  err_code;
-    nrf_csense_instance_t     * p_instance_temp = mp_nrf_csense_instance_head;
-    nrf_csense_pad_t const    * p_pad;
-    uint8_t                     channels_mask = 0;
-    uint8_t                     instance_channels_mask = 0;
+    ret_code_t               err_code;
+    nrf_csense_instance_t  * p_instance_temp = mp_nrf_csense_instance_head;
+    nrf_csense_pad_t const * p_pad;
+    uint8_t                  channels_mask = 0;
+    uint8_t                  instance_channels_mask = 0;
 
     for (p_instance_temp = mp_nrf_csense_instance_head; p_instance_temp != NULL;
          p_instance_temp = p_instance_temp->p_next_instance)
@@ -605,7 +609,7 @@ ret_code_t nrf_csense_disable(nrf_csense_instance_t * const p_instance)
         {
             return err_code;
         }
-        m_nrf_csense.state = NRF_DRV_STATE_INITIALIZED;
+        m_nrf_csense.state = NRFX_DRV_STATE_INITIALIZED;
     }
 
     return NRF_SUCCESS;
@@ -614,7 +618,7 @@ ret_code_t nrf_csense_disable(nrf_csense_instance_t * const p_instance)
 
 ret_code_t nrf_csense_ticks_set(uint32_t ticks)
 {
-    ASSERT(m_nrf_csense.state != NRF_DRV_STATE_UNINITIALIZED);
+    ASSERT(m_nrf_csense.state != NRFX_DRV_STATE_UNINITIALIZED);
 
     ret_code_t err_code;
 
@@ -625,7 +629,7 @@ ret_code_t nrf_csense_ticks_set(uint32_t ticks)
 
     m_nrf_csense.ticks = ticks;
 
-    if (m_nrf_csense.state == NRF_DRV_STATE_POWERED_ON)
+    if (m_nrf_csense.state == NRFX_DRV_STATE_POWERED_ON)
     {
         err_code = app_timer_stop(nrf_csense_timer);
         if (err_code != NRF_SUCCESS)

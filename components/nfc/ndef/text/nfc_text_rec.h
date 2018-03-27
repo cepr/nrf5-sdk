@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #ifndef NFC_TEXT_REC_H__
 #define NFC_TEXT_REC_H__
 
@@ -111,8 +110,8 @@ extern const uint8_t nfc_text_rec_type_field[];
 /**
  *@brief Macro for creating and initializing an NFC NDEF record descriptor for a Text record.
  *
- * This macro creates and initializes a static instance of type @ref nfc_ndef_record_desc_t and
- * a static instance of type @ref nfc_text_rec_payload_desc_t, which together constitute
+ * This macro creates and initializes an instance of type @ref nfc_ndef_record_desc_t and
+ * an instance of type @ref nfc_text_rec_payload_desc_t, which together constitute
  * an instance of a Text record.
  *
  * Use the macro @ref NFC_NDEF_TEXT_RECORD_DESC to access the NDEF Text record descriptor instance.
@@ -130,8 +129,7 @@ extern const uint8_t nfc_text_rec_type_field[];
                                       LANG_CODE_LEN,                        \
                                       P_DATA,                               \
                                       DATA_LEN)                             \
-    static nfc_text_rec_payload_desc_t NAME##_nfc_text_rec_payload_desc;    \
-    NAME##_nfc_text_rec_payload_desc = (nfc_text_rec_payload_desc_t)        \
+    nfc_text_rec_payload_desc_t NAME##_nfc_text_rec_payload_desc =          \
     {                                                                       \
         .utf            = UTF,                                              \
         .p_lang_code    = P_LANG_CODE,                                      \

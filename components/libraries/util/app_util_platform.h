@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /**@file
  *
  * @defgroup app_util_platform Utility Functions and Definitions (Platform)
@@ -123,7 +122,7 @@ typedef enum
 /**@brief Macro for setting a breakpoint.
  */
 #if defined(__GNUC__)
-#define NRF_BREAKPOINT __builtin_trap()
+#define NRF_BREAKPOINT __asm__("BKPT 0");
 #else
 #define NRF_BREAKPOINT __BKPT(0)
 #endif
@@ -155,6 +154,20 @@ typedef enum
 #elif defined (__ICCARM__)
 #define PACKED_STRUCT __packed struct
 #endif
+
+#if defined ( __CC_ARM )
+#define PRAGMA_OPTIMIZATION_FORCE_START _Pragma ("push") \
+                                        _Pragma ("O3")
+#define PRAGMA_OPTIMIZATION_FORCE_END   _Pragma ("pop")
+#elif defined   ( __GNUC__ )
+#define PRAGMA_OPTIMIZATION_FORCE_START _Pragma("GCC push_options") \
+                                        _Pragma ("GCC optimize (\"Os\")")
+#define PRAGMA_OPTIMIZATION_FORCE_END   _Pragma ("GCC pop_options")
+#elif defined (__ICCARM__)
+#define PRAGMA_OPTIMIZATION_FORCE_START _Pragma ("optimize=high z")
+#define PRAGMA_OPTIMIZATION_FORCE_END
+#endif
+
 
 void app_util_critical_region_enter (uint8_t *p_nested);
 void app_util_critical_region_exit (uint8_t nested);
@@ -198,12 +211,14 @@ void app_util_critical_region_exit (uint8_t nested);
 /**@brief Macro to enable anonymous unions from a certain point in the code.
  */
 #if defined(__CC_ARM)
-    #define ANON_UNIONS_ENABLE _Pragma("push") \
-                               _Pragma("anon_unions")
+    #define ANON_UNIONS_ENABLE _Pragma("push")        \
+                               _Pragma("anon_unions") \
+                               struct semicolon_swallower
 #elif defined(__ICCARM__)
-    #define ANON_UNIONS_ENABLE _Pragma("language=extended")
+    #define ANON_UNIONS_ENABLE _Pragma("language=extended") \
+                               struct semicolon_swallower
 #else
-    #define ANON_UNIONS_ENABLE
+    #define ANON_UNIONS_ENABLE struct semicolon_swallower
     // No action will be taken.
     // For GCC anonymous unions are enabled by default.
 #endif
@@ -212,14 +227,23 @@ void app_util_critical_region_exit (uint8_t nested);
  * @note Call only after first calling @ref ANON_UNIONS_ENABLE.
  */
 #if defined(__CC_ARM)
-    #define ANON_UNIONS_DISABLE _Pragma("pop")
+    #define ANON_UNIONS_DISABLE _Pragma("pop") \
+                                struct semicolon_swallower
 #elif defined(__ICCARM__)
-    #define ANON_UNIONS_DISABLE
+    #define ANON_UNIONS_DISABLE struct semicolon_swallower
     // for IAR leave anonymous unions enabled
 #else
-    #define ANON_UNIONS_DISABLE
+    #define ANON_UNIONS_DISABLE struct semicolon_swallower
     // No action will be taken.
     // For GCC anonymous unions are enabled by default.
+#endif
+
+/**@brief Macro for adding pragma directive only for GCC.
+ */
+#ifdef __GNUC__
+#define GCC_PRAGMA(v)            _Pragma(v)
+#else
+#define GCC_PRAGMA(v)
 #endif
 
 /* Workaround for Keil 4 */
@@ -234,19 +258,8 @@ void app_util_critical_region_exit (uint8_t nested);
  * @retval   APP_IRQ_PRIORITY_LOW     We are running in Application Low interrupt level.
  * @retval   APP_IRQ_PRIORITY_THREAD  We are running in Thread Mode.
  */
-static __INLINE uint8_t current_int_priority_get(void)
-{
-    uint32_t isr_vector_num = __get_IPSR() & IPSR_ISR_Msk ;
-    if (isr_vector_num > 0)
-    {
-        int32_t irq_type = ((int32_t)isr_vector_num - EXTERNAL_INT_VECTOR_OFFSET);
-        return (NVIC_GetPriority((IRQn_Type)irq_type) & 0xFF);
-    }
-    else
-    {
-        return APP_IRQ_PRIORITY_THREAD;
-    }
-}
+uint8_t current_int_priority_get(void);
+
 
 /**@brief Function for finding out the current privilege level.
  *
@@ -254,26 +267,7 @@ static __INLINE uint8_t current_int_priority_get(void)
  * @retval   APP_LEVEL_UNPRIVILEGED    We are running in unprivileged level.
  * @retval   APP_LEVEL_PRIVILEGED    We are running in privileged level.
  */
-static __INLINE uint8_t privilege_level_get(void)
-{
-#if __CORTEX_M == (0x00U) || defined(_WIN32) || defined(__unix) || defined(__APPLE__)
-    /* the Cortex-M0 has no concept of privilege */
-    return APP_LEVEL_PRIVILEGED;
-#elif __CORTEX_M == (0x04U)
-    uint32_t isr_vector_num = __get_IPSR() & IPSR_ISR_Msk ;
-    if (0 == isr_vector_num)
-    {
-        /* Thread Mode, check nPRIV */
-        int32_t control = __get_CONTROL();
-        return control & CONTROL_nPRIV_Msk ? APP_LEVEL_UNPRIVILEGED : APP_LEVEL_PRIVILEGED;
-    }
-    else
-    {
-        /* Handler Mode, always privileged */
-        return APP_LEVEL_PRIVILEGED;
-    }
-#endif
-}
+uint8_t privilege_level_get(void);
 
 
 #ifdef __cplusplus

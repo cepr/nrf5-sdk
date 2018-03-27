@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2006 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2006 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,8 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
-
 #ifndef NRF_BITMASK_H
 #define NRF_BITMASK_H
 

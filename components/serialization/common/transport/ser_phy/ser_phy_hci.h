@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,14 +37,13 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  *
  * @defgroup ser_phy_hci HCI Serialization PHY
  * @{
  * @ingroup ble_sdk_lib_serialization
  *
- * @brief   @tagAPI52832 HCI PHY layer for serialization.
+ * @brief HCI PHY layer for serialization.
  *
  * @details This file contains declarations of functions and definitions of data structures and
  *          identifiers (typedef enum) used as API of the serialization HCI PHY layer.

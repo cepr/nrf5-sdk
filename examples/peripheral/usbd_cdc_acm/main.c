@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2017 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -56,13 +55,27 @@
 #include "app_usbd.h"
 #include "app_usbd_string_desc.h"
 #include "app_usbd_cdc_acm.h"
+#include "app_usbd_serial_num.h"
 
 #include "boards.h"
+#include "bsp.h"
+#include "bsp_cli.h"
+#include "nrf_cli.h"
+#include "nrf_cli_uart.h"
 
-#define NRF_LOG_MODULE_NAME "APP"
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 
+/**
+ * @brief CLI interface over UART
+ */
+NRF_CLI_UART_DEF(m_cli_uart_transport, 0, 64, 16);
+NRF_CLI_DEF(m_cli_uart,
+            "uart_cli:~$ ",
+            &m_cli_uart_transport.transport,
+            '\r',
+            4);
 
 /**@file
  * @defgroup usbd_cdc_acm_example main.c
@@ -72,13 +85,15 @@
  *
  */
 
-#define LED_USB_RESUME     (BSP_BOARD_LED_0)
-#define LED_CDC_ACM_OPEN   (BSP_BOARD_LED_1)
-#define LED_CDC_ACM_RX     (BSP_BOARD_LED_2)
-#define LED_CDC_ACM_TX     (BSP_BOARD_LED_3)
+#define LED_USB_RESUME      (BSP_BOARD_LED_0)
+#define LED_CDC_ACM_OPEN    (BSP_BOARD_LED_1)
+#define LED_CDC_ACM_RX      (BSP_BOARD_LED_2)
+#define LED_CDC_ACM_TX      (BSP_BOARD_LED_3)
 
-#define BTN_CDC_DATA_SEND         (BSP_BOARD_BUTTON_0)
-#define BTN_CDC_NOTIFY_SEND       (BSP_BOARD_BUTTON_1)
+#define BTN_CDC_DATA_SEND       0
+#define BTN_CDC_NOTIFY_SEND     1
+
+#define BTN_CDC_DATA_KEY_RELEASE        (bsp_event_t)(BSP_EVENT_KEY_LAST + 1)
 
 /**
  * @brief Enable power USB detection
@@ -100,40 +115,26 @@ static void cdc_acm_user_ev_handler(app_usbd_class_inst_t const * p_inst,
 #define CDC_ACM_DATA_EPIN       NRF_DRV_USBD_EPIN1
 #define CDC_ACM_DATA_EPOUT      NRF_DRV_USBD_EPOUT1
 
-/**
- * @brief Interfaces list passed to @ref APP_USBD_CDC_ACM_GLOBAL_DEF
- * */
-#define CDC_ACM_INTERFACES_CONFIG()                 \
-    APP_USBD_CDC_ACM_CONFIG(CDC_ACM_COMM_INTERFACE, \
-                            CDC_ACM_COMM_EPIN,      \
-                            CDC_ACM_DATA_INTERFACE, \
-                            CDC_ACM_DATA_EPIN,      \
-                            CDC_ACM_DATA_EPOUT)
-
-
-static const uint8_t m_cdc_acm_class_descriptors[] = {
-        APP_USBD_CDC_ACM_DEFAULT_DESC(CDC_ACM_COMM_INTERFACE,
-                                      CDC_ACM_COMM_EPIN,
-                                      CDC_ACM_DATA_INTERFACE,
-                                      CDC_ACM_DATA_EPIN,
-                                      CDC_ACM_DATA_EPOUT)
-};
-
-/*lint -save -e26 -e64 -e123 -e505 -e651*/
 
 /**
  * @brief CDC_ACM class instance
  * */
 APP_USBD_CDC_ACM_GLOBAL_DEF(m_app_cdc_acm,
-                            CDC_ACM_INTERFACES_CONFIG(),
                             cdc_acm_user_ev_handler,
-                            m_cdc_acm_class_descriptors
+                            CDC_ACM_COMM_INTERFACE,
+                            CDC_ACM_DATA_INTERFACE,
+                            CDC_ACM_COMM_EPIN,
+                            CDC_ACM_DATA_EPIN,
+                            CDC_ACM_DATA_EPOUT,
+                            APP_USBD_CDC_COMM_PROTOCOL_AT_V250
 );
 
-/*lint -restore*/
+#define READ_SIZE 1
 
-static char m_rx_buffer[NRF_DRV_USBD_EPSIZE * 16];
-static char m_tx_buffer[NRF_DRV_USBD_EPSIZE * 16];
+static char m_rx_buffer[READ_SIZE];
+static char m_tx_buffer[NRF_DRV_USBD_EPSIZE];
+static bool m_send_flag = 0;
+
 
 /**
  * @brief User event handler @ref app_usbd_cdc_acm_user_ev_handler_t (headphones)
@@ -145,17 +146,6 @@ static void cdc_acm_user_ev_handler(app_usbd_class_inst_t const * p_inst,
 
     switch (event)
     {
-        case APP_USBD_CDC_ACM_USER_EVT_RESUME:
-            bsp_board_led_on(LED_USB_RESUME);
-            break;
-        case APP_USBD_CDC_ACM_USER_EVT_START:
-            break;
-        case APP_USBD_CDC_ACM_USER_EVT_SUSPEND:
-            bsp_board_led_off(LED_USB_RESUME);
-            break;
-        case APP_USBD_CDC_ACM_USER_EVT_STOP:
-            bsp_board_leds_off();
-            break;
         case APP_USBD_CDC_ACM_USER_EVT_PORT_OPEN:
         {
             bsp_board_led_on(LED_CDC_ACM_OPEN);
@@ -163,8 +153,8 @@ static void cdc_acm_user_ev_handler(app_usbd_class_inst_t const * p_inst,
             /*Setup first transfer*/
             ret_code_t ret = app_usbd_cdc_acm_read(&m_app_cdc_acm,
                                                    m_rx_buffer,
-                                                   sizeof(m_rx_buffer));
-            APP_ERROR_CHECK(ret);
+                                                   READ_SIZE);
+            UNUSED_VARIABLE(ret);
             break;
         }
         case APP_USBD_CDC_ACM_USER_EVT_PORT_CLOSE:
@@ -175,17 +165,20 @@ static void cdc_acm_user_ev_handler(app_usbd_class_inst_t const * p_inst,
             break;
         case APP_USBD_CDC_ACM_USER_EVT_RX_DONE:
         {
-            /*Get amount of data transfered*/
-            size_t size = app_usbd_cdc_acm_rx_size(p_cdc_acm);
-            NRF_LOG_INFO("RX: size: %lu char: %c\r\n", size, m_rx_buffer[0]);
+            ret_code_t ret;
+            NRF_LOG_INFO("Bytes waiting: %d", app_usbd_cdc_acm_bytes_stored(p_cdc_acm));
+            do
+            {
+                /*Get amount of data transfered*/
+                size_t size = app_usbd_cdc_acm_rx_size(p_cdc_acm);
+                NRF_LOG_INFO("RX: size: %lu char: %c", size, m_rx_buffer[0]);
 
+                /* Fetch data until internal buffer is empty */
+                ret = app_usbd_cdc_acm_read(&m_app_cdc_acm,
+                                            m_rx_buffer,
+                                            READ_SIZE);
+            } while (ret == NRF_SUCCESS);
 
-            /*Setup next transfer*/
-            ret_code_t ret = app_usbd_cdc_acm_read(&m_app_cdc_acm,
-                                                   m_rx_buffer,
-                                                   sizeof(m_rx_buffer));
-
-            ASSERT(ret == NRF_SUCCESS); /*Should not happen*/
             bsp_board_led_invert(LED_CDC_ACM_RX);
             break;
         }
@@ -194,146 +187,178 @@ static void cdc_acm_user_ev_handler(app_usbd_class_inst_t const * p_inst,
     }
 }
 
-#define SERIAL_NUMBER_STRING_SIZE (16)
-
-uint16_t g_extern_serial_number[SERIAL_NUMBER_STRING_SIZE + 1];
-
-static void serial_number_string_create(void)
+static void usbd_user_ev_handler(app_usbd_event_type_t event)
 {
-    g_extern_serial_number[0] = (uint16_t)APP_USBD_DESCRIPTOR_STRING << 8 |
-                                          sizeof(g_extern_serial_number);
-
-    uint32_t dev_id_hi = NRF_FICR->DEVICEID[1];
-    uint32_t dev_id_lo = NRF_FICR->DEVICEID[0];
-
-    uint64_t device_id = (((uint64_t)dev_id_hi) << 32) | dev_id_lo;
-
-    for (size_t i = 1; i < SERIAL_NUMBER_STRING_SIZE + 1; ++i)
+    switch (event)
     {
-        char tmp[2];
-        (void)snprintf(tmp, sizeof(tmp), "%x", (unsigned int)(device_id & 0xF));
-        g_extern_serial_number[i] = tmp[0];
-        device_id >>= 4;
-    }
-}
-
-/**
- * @brief  USB connection status
- * */
-static bool m_usb_connected = false;
-
-static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
-{
-    switch(event)
-    {
-        case NRF_DRV_POWER_USB_EVT_DETECTED:
-            NRF_LOG_INFO("USB power detected\r\n");
+        case APP_USBD_EVT_DRV_SUSPEND:
+            bsp_board_led_off(LED_USB_RESUME);
+            break;
+        case APP_USBD_EVT_DRV_RESUME:
+            bsp_board_led_on(LED_USB_RESUME);
+            break;
+        case APP_USBD_EVT_STARTED:
+            break;
+        case APP_USBD_EVT_STOPPED:
+            app_usbd_disable();
+            bsp_board_leds_off();
+            break;
+        case APP_USBD_EVT_POWER_DETECTED:
+            NRF_LOG_INFO("USB power detected");
 
             if (!nrf_drv_usbd_is_enabled())
             {
                 app_usbd_enable();
             }
             break;
-        case NRF_DRV_POWER_USB_EVT_REMOVED:
-            NRF_LOG_INFO("USB power removed\r\n");
-            m_usb_connected = false;
+        case APP_USBD_EVT_POWER_REMOVED:
+            NRF_LOG_INFO("USB power removed");
+            app_usbd_stop();
             break;
-        case NRF_DRV_POWER_USB_EVT_READY:
-            NRF_LOG_INFO("USB ready\r\n");
-            m_usb_connected = true;
+        case APP_USBD_EVT_POWER_READY:
+            NRF_LOG_INFO("USB ready");
+            app_usbd_start();
             break;
         default:
-            ASSERT(false);
+            break;
     }
 }
 
-static void usb_start(void)
-{
-    if (USBD_POWER_DETECTION)
-    {
-        static const nrf_drv_power_usbevt_config_t config =
-        {
-            .handler = power_usb_event_handler
-        };
 
-        nrf_drv_power_usbevt_init(&config);
-    }
-    else
-    {
-        NRF_LOG_INFO("No USB power detection enabled\r\nStarting USB now\r\n");
-
-        app_usbd_enable();
-        app_usbd_start();
-        m_usb_connected = true;
-    }
-}
-
-static bool usb_connection_handle(bool last_usb_conn_status)
-{
-    if (last_usb_conn_status != m_usb_connected)
-    {
-        last_usb_conn_status = m_usb_connected;
-        m_usb_connected ? app_usbd_start() : app_usbd_disable();
-    }
-
-    return last_usb_conn_status;
-}
-
-int main(void)
+static void bsp_event_callback(bsp_event_t ev)
 {
     ret_code_t ret;
-
-    ret = nrf_drv_clock_init();
-    APP_ERROR_CHECK(ret);
-    ret = nrf_drv_power_init(NULL);
-    APP_ERROR_CHECK(ret);
-
-    ret = NRF_LOG_INIT(NULL);
-    APP_ERROR_CHECK(ret);
-    NRF_LOG_INFO("Hello USB!\r\n");
-
-    /* Configure LEDs */
-    bsp_board_leds_init();
-    bsp_board_buttons_init();
-
-    serial_number_string_create();
-
-    ret = app_usbd_init();
-    APP_ERROR_CHECK(ret);
-
-    app_usbd_class_inst_t const * class_cdc_acm = app_usbd_cdc_acm_class_inst_get(&m_app_cdc_acm);
-    ret = app_usbd_class_append(class_cdc_acm);
-    APP_ERROR_CHECK(ret);
-
-    bool last_usb_conn_status = false;
-    usb_start();
-
-    while (true)
+    switch ((unsigned int)ev)
     {
-        last_usb_conn_status = usb_connection_handle(last_usb_conn_status);
-
-        if (bsp_board_button_state_get(BTN_CDC_DATA_SEND))
+        case CONCAT_2(BSP_EVENT_KEY_, BTN_CDC_DATA_SEND):
         {
-            static int  frame_counter;
-
-            sprintf(m_tx_buffer, "Hello USB CDC FA demo: %u\r\n", frame_counter);
-
-            ret = app_usbd_cdc_acm_write(&m_app_cdc_acm, m_tx_buffer, sizeof(m_tx_buffer));
-            if (ret == NRF_SUCCESS)
-            {
-                ++frame_counter;
-            }
+            m_send_flag = 1;
+            break;
+        }
+        
+        case BTN_CDC_DATA_KEY_RELEASE :
+        {
+            m_send_flag = 0;
+            break;
         }
 
-        if (bsp_board_button_state_get(BTN_CDC_NOTIFY_SEND))
+        case CONCAT_2(BSP_EVENT_KEY_, BTN_CDC_NOTIFY_SEND):
         {
             ret = app_usbd_cdc_acm_serial_state_notify(&m_app_cdc_acm,
                                                        APP_USBD_CDC_ACM_SERIAL_STATE_BREAK,
                                                        false);
             UNUSED_VARIABLE(ret);
+            break;
         }
 
+        default:
+            return; // no implementation needed
+    }
+}
+
+static void init_bsp(void)
+{
+    ret_code_t ret;
+    ret = bsp_init(BSP_INIT_BUTTONS, bsp_event_callback);
+    APP_ERROR_CHECK(ret);
+    
+    UNUSED_RETURN_VALUE(bsp_event_to_button_action_assign(BTN_CDC_DATA_SEND,
+                                                          BSP_BUTTON_ACTION_RELEASE,
+                                                          BTN_CDC_DATA_KEY_RELEASE));
+    
+    /* Configure LEDs */
+    bsp_board_init(BSP_INIT_LEDS);
+}
+
+static void init_cli(void)
+{
+    ret_code_t ret;
+    ret = bsp_cli_init(bsp_event_callback);
+    APP_ERROR_CHECK(ret);
+    nrf_drv_uart_config_t uart_config = NRF_DRV_UART_DEFAULT_CONFIG;
+    uart_config.pseltxd = TX_PIN_NUMBER;
+    uart_config.pselrxd = RX_PIN_NUMBER;
+    uart_config.hwfc    = NRF_UART_HWFC_DISABLED;
+    ret = nrf_cli_init(&m_cli_uart, &uart_config, true, true, NRF_LOG_SEVERITY_INFO);
+    APP_ERROR_CHECK(ret);
+    ret = nrf_cli_start(&m_cli_uart);
+    APP_ERROR_CHECK(ret);
+}
+
+int main(void)
+{
+    ret_code_t ret;
+    static const app_usbd_config_t usbd_config = {
+        .ev_state_proc = usbd_user_ev_handler
+    };
+
+    ret = NRF_LOG_INIT(NULL);
+    APP_ERROR_CHECK(ret);
+
+    ret = nrf_drv_clock_init();
+    APP_ERROR_CHECK(ret);
+    
+    nrf_drv_clock_lfclk_request(NULL);
+
+    while(!nrf_drv_clock_lfclk_is_running())
+    {
+        /* Just waiting */
+    }
+
+    ret = app_timer_init();
+    APP_ERROR_CHECK(ret);
+
+    init_bsp();
+    init_cli();
+
+    app_usbd_serial_num_generate();
+
+    ret = app_usbd_init(&usbd_config);
+    APP_ERROR_CHECK(ret);
+    NRF_LOG_INFO("USBD CDC ACM example started.");
+
+    app_usbd_class_inst_t const * class_cdc_acm = app_usbd_cdc_acm_class_inst_get(&m_app_cdc_acm);
+    ret = app_usbd_class_append(class_cdc_acm);
+    APP_ERROR_CHECK(ret);
+
+    if (USBD_POWER_DETECTION)
+    {
+        ret = app_usbd_power_events_enable();
+        APP_ERROR_CHECK(ret);
+    }
+    else
+    {
+        NRF_LOG_INFO("No USB power detection enabled\r\nStarting USB now");
+
+        app_usbd_enable();
+        app_usbd_start();
+    }
+
+    while (true)
+    {
+        while (app_usbd_event_queue_process())
+        {
+            /* Nothing to do */
+        }
+        
+        if(m_send_flag)
+        {
+            static int  frame_counter;
+
+            size_t size = sprintf(m_tx_buffer, "Hello USB CDC FA demo: %u\r\n", frame_counter);
+
+            ret = app_usbd_cdc_acm_write(&m_app_cdc_acm, m_tx_buffer, size);
+            if (ret == NRF_SUCCESS)
+            {
+                ++frame_counter;
+            }
+        }
+        
+        nrf_cli_process(&m_cli_uart);
+
         UNUSED_RETURN_VALUE(NRF_LOG_PROCESS());
+        /* Sleep CPU only if there was no interrupt since last loop processing */
+        __WFE();
     }
 }
 

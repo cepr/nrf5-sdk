@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2012 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  *
  * @defgroup ble_sdk_app_gzll_bluetooth_part Bluetooth part of Multiprotocol Application
@@ -47,7 +46,7 @@
 
  * This file contains the source code for the Bluetooth part of multiprotocol
  * sample application using the @ref ble_sdk_srv_hrs (and also @ref ble_sdk_srv_bas and
- * @ref ble_sdk_srv_dis). This application uses the @ref ble_sdk_lib_conn_params module.
+ * @ref ble_sdk_srv_dis). This application uses the @ref ble_conn_params module.
  */
 
 #ifndef BLE_APP_GZLL_HR_H__

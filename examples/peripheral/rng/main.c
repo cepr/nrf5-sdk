@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  * @defgroup rng_example_main main.c
  * @{
@@ -49,20 +48,16 @@
 
 #include <stdio.h>
 #include <stdint.h>
-#include "boards.h"
 #include "nrf_delay.h"
-#include "app_uart.h"
 #include "app_error.h"
 #include "nrf_drv_rng.h"
 #include "nrf_assert.h"
 
-#define NRF_LOG_MODULE_NAME "APP"
+
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 
-#ifdef SOFTDEVICE_PRESENT
-#include "softdevice_handler.h"
-#endif // SOFTDEVICE_PRESENT
 
 #define RANDOM_BUFF_SIZE    16      /**< Random numbers buffer size. */
 
@@ -96,21 +91,20 @@ int main(void)
     err_code = NRF_LOG_INIT(NULL);
     APP_ERROR_CHECK(err_code);
 
-#ifdef SOFTDEVICE_PRESENT
-    nrf_clock_lf_cfg_t clock_lf_cfg = NRF_CLOCK_LFCLKSRC;
-    SOFTDEVICE_HANDLER_INIT(&clock_lf_cfg, NULL);
-#endif // SOFTDEVICE_PRESENT
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
 
     err_code = nrf_drv_rng_init(NULL);
     APP_ERROR_CHECK(err_code);
+
+    NRF_LOG_INFO("RNG example started.");
 
     while (true)
     {
         uint8_t p_buff[RANDOM_BUFF_SIZE];
         uint8_t length = random_vector_generate(p_buff,RANDOM_BUFF_SIZE);
-        NRF_LOG_INFO("Random Vector:\r\n");
+        NRF_LOG_INFO("Random Vector:");
         NRF_LOG_HEXDUMP_INFO(p_buff, length);
-        NRF_LOG_INFO("\r\n");
+        NRF_LOG_INFO("");
         NRF_LOG_FLUSH();
         nrf_delay_ms(100);
     }

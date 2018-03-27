@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,14 +37,14 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #include "ble_lns.h"
 #include "ble_ln_db.h"
 #include "ble_ln_common.h"
 #include "sdk_common.h"
 
-#define NRF_LOG_MODULE_NAME "BLE_LNS"
+#define NRF_LOG_MODULE_NAME ble_lns
 #include "nrf_log.h"
+NRF_LOG_MODULE_REGISTER();
 
 // Location and Speed flag bits
 #define LOC_SPEED_FLAG_INSTANT_SPEED_PRESENT             (0x01 << 0)         /**< Instantaneous Speed Present bit. */
@@ -177,11 +177,11 @@ static void on_ctrl_pt_cccd_write(ble_lns_t * p_lns, ble_gatts_evt_write_t const
 
             if (ble_srv_is_indication_enabled(p_evt_write->data))
             {
-                evt.evt_type = BLE_LNS_CTRLPT_EVT_INDICATION_ENABLED;;
+                evt.evt_type = BLE_LNS_CTRLPT_EVT_INDICATION_ENABLED;
             }
             else
             {
-                evt.evt_type = BLE_LNS_CTRLPT_EVT_INDICATION_DISABLED;;
+                evt.evt_type = BLE_LNS_CTRLPT_EVT_INDICATION_DISABLED;
             }
 
             p_lns->evt_handler(p_lns, &evt);
@@ -263,7 +263,7 @@ static void on_write(ble_lns_t * p_lns, ble_evt_t const * p_ble_evt)
         return;
     }
 
-    const ble_gatts_evt_write_t * p_evt_write = &p_ble_evt->evt.gatts_evt.params.write;
+    ble_gatts_evt_write_t const * p_evt_write = &p_ble_evt->evt.gatts_evt.params.write;
 
     if (p_evt_write->handle == p_lns->ctrlpt_handles.cccd_handle)
     {
@@ -376,7 +376,7 @@ static uint8_t loc_speed_encode_packet1(ble_lns_t           const * p_lns,
     uint16_t flags = 0;
     uint8_t  len   = 2;
 
-    const ble_lncp_mask_t mask = ble_lncp_mask_get(&p_lns->ctrl_pt);
+    ble_lncp_mask_t const mask = ble_lncp_mask_get(&p_lns->ctrl_pt);
 
     // Instantaneous Speed
     if (p_lns->available_features & BLE_LNS_FEATURE_INSTANT_SPEED_SUPPORTED)
@@ -394,7 +394,7 @@ static uint8_t loc_speed_encode_packet1(ble_lns_t           const * p_lns,
     {
         if (p_loc_speed->total_distance_present && !mask.total_distance)
         {
-            const uint32_t total_distance = ble_lncp_total_distance_get(&p_lns->ctrl_pt);
+            uint32_t const total_distance = ble_lncp_total_distance_get(&p_lns->ctrl_pt);
             flags |= LOC_SPEED_FLAG_TOTAL_DISTANCE_PRESENT;
             len += uint24_encode(total_distance, &p_encoded_buffer[len]);
         }
@@ -435,17 +435,14 @@ static uint8_t loc_speed_encode_packet2(ble_lns_t           const * p_lns,
     uint16_t flags = 0;
     uint8_t  len   = 2;
 
-    const ble_lncp_mask_t mask = ble_lncp_mask_get(&p_lns->ctrl_pt);
-
-    flags = 0;
-    len = 2;
+    ble_lncp_mask_t const mask = ble_lncp_mask_get(&p_lns->ctrl_pt);
 
     // Elevation
     if (p_lns->available_features & BLE_LNS_FEATURE_ELEVATION_SUPPORTED)
     {
         if (p_loc_speed->elevation_present && !mask.elevation)
         {
-            const uint32_t elevation = ble_lncp_elevation_get(&p_lns->ctrl_pt);
+            uint32_t const elevation = ble_lncp_elevation_get(&p_lns->ctrl_pt);
 
             flags |= LOC_SPEED_FLAG_ELEVATION_PRESENT;
             flags |= ((uint16_t) p_loc_speed->elevation_source << 10) & LOC_SPEED_FLAG_ELEVATION_SOURCE;
@@ -597,7 +594,7 @@ static ret_code_t loc_and_nav_feature_char_add(ble_lns_t * p_lns, ble_lns_init_t
  */
 static ret_code_t loc_speed_char_add(ble_lns_t * p_lns, ble_lns_init_t const * p_lns_init)
 {
-    uint8_t               encoded_initial_loc_speed1[BLE_L2CAP_MTU_DEF ];
+    uint8_t               encoded_initial_loc_speed1[BLE_GATT_ATT_MTU_DEFAULT];
     uint8_t               len;
     ble_add_char_params_t add_char_params;
 
@@ -606,7 +603,7 @@ static ret_code_t loc_speed_char_add(ble_lns_t * p_lns, ble_lns_init_t const * p
     memset(&add_char_params, 0, sizeof(add_char_params));
 
     add_char_params.uuid              = BLE_UUID_LN_LOCATION_AND_SPEED_CHAR;
-    add_char_params.max_len           = BLE_L2CAP_MTU_DEF ;
+    add_char_params.max_len           = BLE_GATT_ATT_MTU_DEFAULT ;
     add_char_params.init_len          = len;
     add_char_params.p_init_value      = &encoded_initial_loc_speed1[0];
     add_char_params.is_var_len        = true;
@@ -629,19 +626,19 @@ static ret_code_t loc_speed_char_add(ble_lns_t * p_lns, ble_lns_init_t const * p
 static ret_code_t pos_quality_char_add(ble_lns_t * p_lns, ble_lns_init_t const * p_lns_init)
 {
     uint8_t               len;
-    uint8_t               init_value_encoded[BLE_L2CAP_MTU_DEF];
+    uint8_t               init_value_encoded[BLE_GATT_ATT_MTU_DEFAULT];
     ble_add_char_params_t add_char_params;
 
     len = pos_qual_encode(p_lns, p_lns_init->p_position_quality, init_value_encoded);
 
     memset(&add_char_params, 0, sizeof(add_char_params));
 
-    add_char_params.uuid              = BLE_UUID_LN_POSITION_QUALITY_CHAR;
-    add_char_params.max_len           = BLE_L2CAP_MTU_DEF ;
-    add_char_params.init_len          = len;
-    add_char_params.p_init_value      = init_value_encoded;
-    add_char_params.char_props.read   = true;
-    add_char_params.read_access       = p_lns_init->position_quality_security_req_read_perm;
+    add_char_params.uuid            = BLE_UUID_LN_POSITION_QUALITY_CHAR;
+    add_char_params.max_len         = BLE_GATT_ATT_MTU_DEFAULT ;
+    add_char_params.init_len        = len;
+    add_char_params.p_init_value    = init_value_encoded;
+    add_char_params.char_props.read = true;
+    add_char_params.read_access     = p_lns_init->position_quality_security_req_read_perm;
 
     return characteristic_add(p_lns->service_handle,
                               &add_char_params,
@@ -759,11 +756,12 @@ static bool init_param_mismatch_present(ble_lns_init_t const * p_lns_init)
 }
 
 
-void ble_lns_on_ble_evt(ble_lns_t * p_lns, ble_evt_t const * p_ble_evt)
+void ble_lns_on_ble_evt(ble_evt_t const * p_ble_evt, void * p_context)
 {
-    VERIFY_PARAM_NOT_NULL_VOID(p_lns);
+    VERIFY_PARAM_NOT_NULL_VOID(p_context);
     VERIFY_PARAM_NOT_NULL_VOID(p_ble_evt);
 
+    ble_lns_t * p_lns = (ble_lns_t *)p_context;
     ble_lncp_on_ble_evt(&p_lns->ctrl_pt, p_ble_evt);
 
     switch (p_ble_evt->header.evt_id)
@@ -780,7 +778,7 @@ void ble_lns_on_ble_evt(ble_lns_t * p_lns, ble_evt_t const * p_ble_evt)
             on_write(p_lns, p_ble_evt);
             break;
 
-        case BLE_EVT_TX_COMPLETE:
+        case BLE_GATTS_EVT_HVN_TX_COMPLETE:
             on_tx_complete(p_lns);
             break;
 
@@ -806,23 +804,23 @@ ret_code_t ble_lns_init(ble_lns_t * p_lns, ble_lns_init_t const * p_lns_init)
     ble_lncp_init_t lncp_init;
 
     // Initialize service structure
-    p_lns->evt_handler                                   = p_lns_init->evt_handler;
-    p_lns->error_handler                                 = p_lns_init->error_handler;
-    p_lns->conn_handle                                   = BLE_CONN_HANDLE_INVALID;
-    p_lns->available_features                            = p_lns_init->available_features;
-    p_lns->is_navigation_present                         = p_lns_init->is_navigation_present;
+    p_lns->evt_handler           = p_lns_init->evt_handler;
+    p_lns->error_handler         = p_lns_init->error_handler;
+    p_lns->conn_handle           = BLE_CONN_HANDLE_INVALID;
+    p_lns->available_features    = p_lns_init->available_features;
+    p_lns->is_navigation_present = p_lns_init->is_navigation_present;
 
     // clear pending notifications
     p_lns->pending_loc_speed_notifications[0].is_pending = false;
     p_lns->pending_loc_speed_notifications[1].is_pending = false;
     p_lns->pending_navigation_notification.is_pending    = false;
 
-    p_lns->p_location_speed                              = p_lns_init->p_location_speed;
-    p_lns->p_position_quality                            = p_lns_init->p_position_quality;
-    p_lns->p_navigation                                  = p_lns_init->p_navigation;
+    p_lns->p_location_speed   = p_lns_init->p_location_speed;
+    p_lns->p_position_quality = p_lns_init->p_position_quality;
+    p_lns->p_navigation       = p_lns_init->p_navigation;
 
-    p_lns->is_loc_speed_notification_enabled             = false;
-    p_lns->is_nav_notification_enabled                   = false;
+    p_lns->is_loc_speed_notification_enabled = false;
+    p_lns->is_nav_notification_enabled       = false;
 
     ble_ln_db_init();
 
@@ -891,7 +889,7 @@ ret_code_t ble_lns_init(ble_lns_t * p_lns, ble_lns_init_t const * p_lns_init)
         memcpy(&p_lns->ctrlpt_handles, &p_lns->ctrl_pt.ctrlpt_handles, sizeof(ble_gatts_char_handles_t));
     }
 
-    NRF_LOG_DEBUG("Initialized\r\n");
+    NRF_LOG_DEBUG("Initialized");
 
     return NRF_SUCCESS;
 }

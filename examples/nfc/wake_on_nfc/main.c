@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  *
  * @defgroup wake_on_nfc_example_main main.c
@@ -58,11 +57,13 @@
 #include "nrf.h"
 #include "sdk_errors.h"
 
+#include "nrf_log.h"
+#include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
+
 #define BTN_ID_SLEEP                0 /**< ID of button used to put the application into sleep mode. */
 
-#define APP_TIMER_PRESCALER         0x00                                      /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_OP_QUEUE_SIZE     0x04                                      /**< Size of timer operation queues. */
-#define APP_TICK_EVENT_INTERVAL     APP_TIMER_TICKS(500, APP_TIMER_PRESCALER) /**< 500 miliseconds tick event interval in timer tick units. */
+#define APP_TICK_EVENT_INTERVAL     APP_TIMER_TICKS(500) /**< 500 miliseconds tick event interval in timer tick units. */
 
 APP_TIMER_DEF(m_tick_timer);             /**< Timer used to toggle LED state. */
 
@@ -99,6 +100,15 @@ static void bsp_event_handler(bsp_event_t event)
 }
 
 
+static void log_init(void)
+{
+    ret_code_t err_code = NRF_LOG_INIT(NULL);
+    APP_ERROR_CHECK(err_code);
+
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
+}
+
+
 /**
  * @brief 500 miliseconds tick handler for changing the LED state.
  */
@@ -114,14 +124,16 @@ static void utils_setup(void)
 {
     ret_code_t err_code;
 
+    log_init();
+
     err_code = nrf_drv_clock_init();
     APP_ERROR_CHECK(err_code);
     nrf_drv_clock_lfclk_request(NULL);
 
-    APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_OP_QUEUE_SIZE, false);
-    err_code = bsp_init(BSP_INIT_LED | BSP_INIT_BUTTONS,
-                        APP_TIMER_TICKS(100, APP_TIMER_PRESCALER),
-                        bsp_event_handler);
+    err_code = app_timer_init();
+    APP_ERROR_CHECK(err_code);
+
+    err_code = bsp_init(BSP_INIT_LEDS | BSP_INIT_BUTTONS, bsp_event_handler);
     APP_ERROR_CHECK(err_code);
 
     err_code = bsp_nfc_btn_init(BTN_ID_SLEEP);
@@ -150,6 +162,8 @@ int main(void)
 
     while (true)
     {
+        NRF_LOG_FLUSH();
+
         if (m_system_off_mode_on)
         {
             nrf_delay_ms(100);

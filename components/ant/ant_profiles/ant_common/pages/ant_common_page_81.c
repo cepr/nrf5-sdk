@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,13 +37,12 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #include "sdk_common.h"
 #if NRF_MODULE_ENABLED(ANT_COMMON_PAGE_81)
 
 #include "ant_common_page_81.h"
 
-#define NRF_LOG_MODULE_NAME "ANT_COMMON_PAGE_81"
+#define NRF_LOG_MODULE_NAME ant_common_page_81
 #if ANT_COMMON_PAGE_81_LOG_ENABLED
 #define NRF_LOG_LEVEL       ANT_COMMON_PAGE_81_LOG_LEVEL
 #define NRF_LOG_INFO_COLOR  ANT_COMMON_PAGE_81_INFO_COLOR
@@ -51,6 +50,7 @@
 #define NRF_LOG_LEVEL       0
 #endif // ANT_COMMON_PAGE_81_LOG_ENABLED
 #include "nrf_log.h"
+NRF_LOG_MODULE_REGISTER();
 
 /**@brief ant+ common page 81 data layout structure. */
 typedef struct
@@ -70,13 +70,13 @@ static void page81_data_log(volatile ant_common_page81_data_t const * p_page_dat
 {
     if (p_page_data->sw_revision_minor != UINT8_MAX)
     {
-        NRF_LOG_INFO("sw revision:                      %u.%u\r\n",
+        NRF_LOG_INFO("sw revision:                      %u.%u",
                    ((ant_common_page81_data_t const *) p_page_data)->sw_revision_major,
                    ((ant_common_page81_data_t const *) p_page_data)->sw_revision_minor);
     }
     else
     {
-        NRF_LOG_INFO("sw revision:                      %u\r\n", p_page_data->sw_revision_major);
+        NRF_LOG_INFO("sw revision:                      %u", p_page_data->sw_revision_major);
     }
 
     NRF_LOG_INFO("serial number:                    %u\r\n\n", (unsigned int) p_page_data->serial_number);

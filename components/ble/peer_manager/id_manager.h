@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,8 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
-
 #ifndef PEER_ID_MANAGER_H__
 #define PEER_ID_MANAGER_H__
 
@@ -47,6 +45,7 @@
 #include "ble.h"
 #include "ble_gap.h"
 #include "peer_manager_types.h"
+#include "peer_manager_internal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,37 +62,6 @@ extern "C" {
  */
 
 
-/**@brief Events that can come from the ID Manager module.
- */
-typedef enum
-{
-    IM_EVT_DUPLICATE_ID,          /**< The ID Manager module has detected that two stored peers represent the same peer. */
-    IM_EVT_BONDED_PEER_CONNECTED, /**< A connected peer has been identified as one of the bonded peers. This can happen immediately on connection, or at a later time. */
-} im_evt_id_t;
-
-
-typedef struct
-{
-    im_evt_id_t evt_id;
-    uint16_t    conn_handle;
-    union
-    {
-        struct
-        {
-            pm_peer_id_t peer_id_1;
-            pm_peer_id_t peer_id_2;
-        } duplicate_id;
-    } params;
-} im_evt_t;
-
-
-/**@brief Event handler for events from the ID Manager module.
- *
- * @param[in]  p_event   The event that has happened.
- */
-typedef void (*im_evt_handler_t)(im_evt_t const * p_event);
-
-
 /**@brief Function for initializing the Identity manager.
  *
  * @retval NRF_SUCCESS          If initialization was successful.
@@ -106,7 +74,7 @@ ret_code_t im_init(void);
  *
  * @param[in]  p_ble_evt  The SoftDevice event.
  */
-void im_ble_evt_handler(ble_evt_t * p_ble_evt);
+void im_ble_evt_handler(ble_evt_t const * p_ble_evt);
 
 
 /**@brief Function for getting the corresponding peer ID from a connection handle.
@@ -124,7 +92,7 @@ pm_peer_id_t im_peer_id_get_by_conn_handle(uint16_t conn_handle);
  *
  * @return The corresponding peer ID, or @ref PM_PEER_ID_INVALID if none could be resolved.
  */
-pm_peer_id_t im_peer_id_get_by_master_id(ble_gap_master_id_t * p_master_id);
+pm_peer_id_t im_peer_id_get_by_master_id(ble_gap_master_id_t const * p_master_id);
 
 
 /**@brief Function for getting the corresponding connection handle from a peer ID.
@@ -156,25 +124,43 @@ bool im_master_ids_compare(ble_gap_master_id_t const * p_master_id1,
  *                          conn_handle was established.
  *
  * @retval NRF_SUCCESS                   The address was found and copied.
- * @retval NRF_ERROR_INVALID_STATE       Module not initialized.
  * @retval BLE_ERROR_CONN_HANDLE_INVALID conn_handle does not refer to an active connection.
  * @retval NRF_ERROR_NULL                p_ble_addr was NULL.
  */
 ret_code_t im_ble_addr_get(uint16_t conn_handle, ble_gap_addr_t * p_ble_addr);
 
 
-/**@brief Function for checking whether a master ID is valid or invalid
+/**@brief Function for checking if a master ID is valid or invalid
  *
  * @param[in]  p_master_id  The master ID.
  *
  * @retval true   The master id is valid.
- * @retval true   The master id is invalid (i.e. all zeros).
+ * @retval false  The master id is invalid (i.e. all zeros).
  */
 bool im_master_id_is_valid(ble_gap_master_id_t const * p_master_id);
 
 
+/**@brief Function for checking if two pieces of bonding data correspond to the same peer.
+ *
+ * @param[in]  p_bonding_data1  The first piece of bonding data to check.
+ * @param[in]  p_bonding_data2  The second piece of bonding data to check.
+ *
+ * @retval true   The bonding data correspond to the same peer.
+ * @retval false  The bonding data do not correspond to the same peer.
+ */
 bool im_is_duplicate_bonding_data(pm_peer_data_bonding_t const * p_bonding_data1,
                                   pm_peer_data_bonding_t const * p_bonding_data2);
+
+
+/**@brief Function for finding if we are already bonded to a peer.
+ *
+ * @param[in]  p_bonding_data  The bonding data to check.
+ * @param[in]  peer_id_skip    Optional peer to ignore when searching for duplicates.
+ *
+ * @return  An existing peer ID for the peer, or PM_PEER_ID_INVALID if none was found.
+ */
+pm_peer_id_t im_find_duplicate_bonding_data(pm_peer_data_bonding_t const * p_bonding_data,
+                                            pm_peer_id_t                   peer_id_skip);
 
 
 /**@brief Function for reporting that a new peer ID has been allocated for a specified connection.
@@ -271,7 +257,7 @@ ret_code_t im_privacy_get(pm_privacy_params_t * p_privacy_params);
  * @details This function will use the ECB peripheral to resolve a resolvable address.
  *          This can be used to resolve the identity of a device distributing a random
  *          resolvable address based on any IRKs you have received earlier. If an address is
- *          resolved by an IRK, the device disributing the address must also know the IRK.
+ *          resolved by an IRK, the device distributing the address must also know the IRK.
  *
  * @param[in] p_addr  A random resolvable address.
  * @param[in] p_irk   An identity resolution key (IRK).

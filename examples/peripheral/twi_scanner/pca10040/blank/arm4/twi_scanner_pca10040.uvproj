@@ -28,7 +28,7 @@
           <SLE66CMisc></SLE66CMisc>
           <SLE66AMisc></SLE66AMisc>
           <SLE66LinkerMisc></SLE66LinkerMisc>
-          <SFDFile>..\..\..\..\..\..\SVD\nrf52.xml</SFDFile>
+          <SFDFile>..\..\..\..\..\..\modules\nrfx\mdk\nrf52.svd</SFDFile>
           <bCustSvd>0</bCustSvd>
           <UseEnv>0</UseEnv>
           <BinPath></BinPath>
@@ -349,10 +349,10 @@
             <uThumb>0</uThumb>
             <uSurpInc>0</uSurpInc>
             <VariousControls>
-              <MiscControls>--c99</MiscControls>
-              <Define> NRF52832 NRF52 BOARD_PCA10040 NRF52_PAN_12 NRF52_PAN_15 NRF52_PAN_20 NRF52_PAN_31 NRF52_PAN_36 NRF52_PAN_51 CONFIG_GPIO_AS_PINRESET NRF52_PAN_54 NRF52_PAN_55 NRF52_PAN_58 NRF52_PAN_64</Define>
+              <MiscControls>--c99 --reduce_paths</MiscControls>
+              <Define> BOARD_PCA10040 CONFIG_GPIO_AS_PINRESET FLOAT_ABI_HARD NRF52 NRF52832_XXAA NRF52_PAN_74 __HEAP_SIZE=8192 __STACK_SIZE=8192</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\..\config\twi_scanner_pca10040;..\..\..\config;..\..\..\..\..\..\components;..\..\..\..\..\..\components\boards;..\..\..\..\..\..\components\device;..\..\..\..\..\..\components\drivers_nrf\common;..\..\..\..\..\..\components\drivers_nrf\delay;..\..\..\..\..\..\components\drivers_nrf\hal;..\..\..\..\..\..\components\drivers_nrf\nrf_soc_nosd;..\..\..\..\..\..\components\drivers_nrf\twi_master;..\..\..\..\..\..\components\drivers_nrf\uart;..\..\..\..\..\..\components\libraries\log;..\..\..\..\..\..\components\libraries\log\src;..\..\..\..\..\..\components\libraries\util;..\..\..\..\..\..\components\toolchain;..\..\..;..\..\..\..\..\..\external\segger_rtt;..\config</IncludePath>
+              <IncludePath>..\..\..\config;..\..\..\..\..\..\components;..\..\..\..\..\..\components\boards;..\..\..\..\..\..\components\drivers_nrf\nrf_soc_nosd;..\..\..\..\..\..\components\libraries\atomic;..\..\..\..\..\..\components\libraries\balloc;..\..\..\..\..\..\components\libraries\delay;..\..\..\..\..\..\components\libraries\experimental_log;..\..\..\..\..\..\components\libraries\experimental_log\src;..\..\..\..\..\..\components\libraries\experimental_memobj;..\..\..\..\..\..\components\libraries\experimental_section_vars;..\..\..\..\..\..\components\libraries\strerror;..\..\..\..\..\..\components\libraries\util;..\..\..;..\..\..\..\..\..\external\fprintf;..\..\..\..\..\..\external\segger_rtt;..\..\..\..\..\..\integration\nrfx;..\..\..\..\..\..\integration\nrfx\legacy;..\..\..\..\..\..\modules\nrfx;..\..\..\..\..\..\modules\nrfx\drivers\include;..\..\..\..\..\..\modules\nrfx\hal;..\..\..\..\..\..\modules\nrfx\mdk;..\config</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -365,10 +365,10 @@
             <NoWarn>0</NoWarn>
             <uSurpInc>0</uSurpInc>
             <VariousControls>
-              <MiscControls> --cpreproc_opts=-DNRF52832,-DNRF52,-DBOARD_PCA10040,-DNRF52_PAN_12,-DNRF52_PAN_15,-DNRF52_PAN_20,-DNRF52_PAN_31,-DNRF52_PAN_36,-DNRF52_PAN_51,-DCONFIG_GPIO_AS_PINRESET,-DNRF52_PAN_54,-DNRF52_PAN_55,-DNRF52_PAN_58,-DNRF52_PAN_64</MiscControls>
-              <Define> NRF52832 NRF52 BOARD_PCA10040 NRF52_PAN_12 NRF52_PAN_15 NRF52_PAN_20 NRF52_PAN_31 NRF52_PAN_36 NRF52_PAN_51 CONFIG_GPIO_AS_PINRESET NRF52_PAN_54 NRF52_PAN_55 NRF52_PAN_58 NRF52_PAN_64</Define>
+              <MiscControls> --cpreproc_opts=-DBOARD_PCA10040,-DCONFIG_GPIO_AS_PINRESET,-DFLOAT_ABI_HARD,-DNRF52,-DNRF52832_XXAA,-DNRF52_PAN_74,-D__HEAP_SIZE=8192,-D__STACK_SIZE=8192</MiscControls>
+              <Define> BOARD_PCA10040 CONFIG_GPIO_AS_PINRESET FLOAT_ABI_HARD NRF52 NRF52832_XXAA NRF52_PAN_74 __HEAP_SIZE=8192 __STACK_SIZE=8192</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\..\config\twi_scanner_pca10040;..\..\..\config;..\..\..\..\..\..\components;..\..\..\..\..\..\components\boards;..\..\..\..\..\..\components\device;..\..\..\..\..\..\components\drivers_nrf\common;..\..\..\..\..\..\components\drivers_nrf\delay;..\..\..\..\..\..\components\drivers_nrf\hal;..\..\..\..\..\..\components\drivers_nrf\nrf_soc_nosd;..\..\..\..\..\..\components\drivers_nrf\twi_master;..\..\..\..\..\..\components\drivers_nrf\uart;..\..\..\..\..\..\components\libraries\log;..\..\..\..\..\..\components\libraries\log\src;..\..\..\..\..\..\components\libraries\util;..\..\..\..\..\..\components\toolchain;..\..\..;..\..\..\..\..\..\external\segger_rtt;..\config</IncludePath>
+              <IncludePath>..\..\..\config;..\..\..\..\..\..\components;..\..\..\..\..\..\components\boards;..\..\..\..\..\..\components\drivers_nrf\nrf_soc_nosd;..\..\..\..\..\..\components\libraries\atomic;..\..\..\..\..\..\components\libraries\balloc;..\..\..\..\..\..\components\libraries\delay;..\..\..\..\..\..\components\libraries\experimental_log;..\..\..\..\..\..\components\libraries\experimental_log\src;..\..\..\..\..\..\components\libraries\experimental_memobj;..\..\..\..\..\..\components\libraries\experimental_section_vars;..\..\..\..\..\..\components\libraries\strerror;..\..\..\..\..\..\components\libraries\util;..\..\..;..\..\..\..\..\..\external\fprintf;..\..\..\..\..\..\external\segger_rtt;..\..\..\..\..\..\integration\nrfx;..\..\..\..\..\..\integration\nrfx\legacy;..\..\..\..\..\..\modules\nrfx;..\..\..\..\..\..\modules\nrfx\drivers\include;..\..\..\..\..\..\modules\nrfx\hal;..\..\..\..\..\..\modules\nrfx\mdk;..\config</IncludePath>
             </VariousControls>
           </Aads>
           <LDads>
@@ -383,13 +383,22 @@
             <ScatterFile></ScatterFile>
             <IncludeLibs></IncludeLibs>
             <IncludeLibsPath></IncludeLibsPath>
-            <Misc></Misc>
+            <Misc>--diag_suppress 6330</Misc>
             <LinkerInputFile></LinkerInputFile>
             <DisabledWarnings></DisabledWarnings>
           </LDads>
         </TargetArmAds>
       </TargetOption>
       <Groups>        <Group>
+          <GroupName>None</GroupName>
+          <Files>            <File>
+              <FileName>arm_startup_nrf52.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>..\..\..\..\..\..\modules\nrfx\mdk\arm_startup_nrf52.s</FilePath>            </File>            <File>
+              <FileName>system_nrf52.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\modules\nrfx\mdk\system_nrf52.c</FilePath>            </File>          </Files>
+        </Group>        <Group>
           <GroupName>Application</GroupName>
           <Files>            <File>
               <FileName>main.c</FileName>
@@ -405,32 +414,38 @@
               <FileType>1</FileType>
               <FilePath>..\..\..\..\..\..\components\boards\boards.c</FilePath>            </File>          </Files>
         </Group>        <Group>
-          <GroupName>Device</GroupName>
-          <Files>            <File>
-              <FileName>arm_startup_nrf52.s</FileName>
-              <FileType>2</FileType>
-              <FilePath>..\..\..\..\..\..\components\toolchain\arm\arm_startup_nrf52.s</FilePath>            </File>            <File>
-              <FileName>system_nrf52.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\..\..\..\components\toolchain\system_nrf52.c</FilePath>            </File>          </Files>
-        </Group>        <Group>
           <GroupName>nRF_Drivers</GroupName>
           <Files>            <File>
-              <FileName>nrf_drv_common.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\..\..\..\components\drivers_nrf\common\nrf_drv_common.c</FilePath>            </File>            <File>
               <FileName>nrf_drv_twi.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\..\..\..\..\components\drivers_nrf\twi_master\nrf_drv_twi.c</FilePath>            </File>            <File>
+              <FilePath>..\..\..\..\..\..\integration\nrfx\legacy\nrf_drv_twi.c</FilePath>            </File>            <File>
               <FileName>nrf_drv_uart.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\..\..\..\..\components\drivers_nrf\uart\nrf_drv_uart.c</FilePath>            </File>          </Files>
+              <FilePath>..\..\..\..\..\..\integration\nrfx\legacy\nrf_drv_uart.c</FilePath>            </File>            <File>
+              <FileName>nrfx_prs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\modules\nrfx\drivers\src\prs\nrfx_prs.c</FilePath>            </File>            <File>
+              <FileName>nrfx_twi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\modules\nrfx\drivers\src\nrfx_twi.c</FilePath>            </File>            <File>
+              <FileName>nrfx_twim.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\modules\nrfx\drivers\src\nrfx_twim.c</FilePath>            </File>            <File>
+              <FileName>nrfx_uart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\modules\nrfx\drivers\src\nrfx_uart.c</FilePath>            </File>            <File>
+              <FileName>nrfx_uarte.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\modules\nrfx\drivers\src\nrfx_uarte.c</FilePath>            </File>          </Files>
         </Group>        <Group>
           <GroupName>nRF_Libraries</GroupName>
           <Files>            <File>
               <FileName>app_error.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\..\..\..\components\libraries\util\app_error.c</FilePath>            </File>            <File>
+              <FileName>app_error_handler_keil.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\components\libraries\util\app_error_handler_keil.c</FilePath>            </File>            <File>
               <FileName>app_error_weak.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\..\..\..\components\libraries\util\app_error_weak.c</FilePath>            </File>            <File>
@@ -440,27 +455,54 @@
               <FileName>nrf_assert.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\..\..\..\components\libraries\util\nrf_assert.c</FilePath>            </File>            <File>
-              <FileName>sdk_errors.c</FileName>
+              <FileName>nrf_atomic.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\..\..\..\..\components\libraries\util\sdk_errors.c</FilePath>            </File>          </Files>
+              <FilePath>..\..\..\..\..\..\components\libraries\atomic\nrf_atomic.c</FilePath>            </File>            <File>
+              <FileName>nrf_balloc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\components\libraries\balloc\nrf_balloc.c</FilePath>            </File>            <File>
+              <FileName>nrf_fprintf.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\external\fprintf\nrf_fprintf.c</FilePath>            </File>            <File>
+              <FileName>nrf_fprintf_format.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\external\fprintf\nrf_fprintf_format.c</FilePath>            </File>            <File>
+              <FileName>nrf_memobj.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\components\libraries\experimental_memobj\nrf_memobj.c</FilePath>            </File>            <File>
+              <FileName>nrf_strerror.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\components\libraries\strerror\nrf_strerror.c</FilePath>            </File>          </Files>
         </Group>        <Group>
           <GroupName>nRF_Log</GroupName>
           <Files>            <File>
+              <FileName>nrf_log_backend_rtt.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\components\libraries\experimental_log\src\nrf_log_backend_rtt.c</FilePath>            </File>            <File>
               <FileName>nrf_log_backend_serial.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\..\..\..\..\components\libraries\log\src\nrf_log_backend_serial.c</FilePath>            </File>            <File>
+              <FilePath>..\..\..\..\..\..\components\libraries\experimental_log\src\nrf_log_backend_serial.c</FilePath>            </File>            <File>
+              <FileName>nrf_log_backend_uart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\components\libraries\experimental_log\src\nrf_log_backend_uart.c</FilePath>            </File>            <File>
+              <FileName>nrf_log_default_backends.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\components\libraries\experimental_log\src\nrf_log_default_backends.c</FilePath>            </File>            <File>
               <FileName>nrf_log_frontend.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\..\..\..\..\components\libraries\log\src\nrf_log_frontend.c</FilePath>            </File>          </Files>
+              <FilePath>..\..\..\..\..\..\components\libraries\experimental_log\src\nrf_log_frontend.c</FilePath>            </File>            <File>
+              <FileName>nrf_log_str_formatter.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\components\libraries\experimental_log\src\nrf_log_str_formatter.c</FilePath>            </File>          </Files>
         </Group>        <Group>
           <GroupName>nRF_Segger_RTT</GroupName>
           <Files>            <File>
-              <FileName>RTT_Syscalls_KEIL.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\..\..\..\external\segger_rtt\RTT_Syscalls_KEIL.c</FilePath>            </File>            <File>
               <FileName>SEGGER_RTT.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\..\..\..\external\segger_rtt\SEGGER_RTT.c</FilePath>            </File>            <File>
+              <FileName>SEGGER_RTT_Syscalls_KEIL.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\..\..\external\segger_rtt\SEGGER_RTT_Syscalls_KEIL.c</FilePath>            </File>            <File>
               <FileName>SEGGER_RTT_printf.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\..\..\..\external\segger_rtt\SEGGER_RTT_printf.c</FilePath>            </File>          </Files>

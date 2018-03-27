@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,9 +37,9 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #include "sdk_common.h"
 #if NRF_MODULE_ENABLED(PEER_MANAGER)
+#include "ble_err.h"
 #include "peer_manager.h"
 #include <string.h>
 #include "security_manager.h"
@@ -51,12 +51,13 @@
 #include "id_manager.h"
 #include "ble_conn_state.h"
 #include "peer_manager_internal.h"
+#include "nrf_sdh_ble.h"
 
+#ifndef PM_PEER_RANKS_ENABLED
+    #define PM_PEER_RANKS_ENABLED 1
+#endif
 
-/**< The number of event handlers that can be registered with the module. */
-#define MAX_REGISTRANTS         (3)
-/**< Macro indicating whether the module has been initialized properly. */
-#define MODULE_INITIALIZED      (m_module_initialized)
+#define MODULE_INITIALIZED      (m_module_initialized)                  /**< Macro indicating whether the module has been initialized properly. */
 
 
 static bool                          m_module_initialized;              /**< Whether or not @ref pm_init has been called successfully. */
@@ -65,17 +66,15 @@ static bool                          m_deleting_all;                    /**< Tru
 static pm_store_token_t              m_peer_rank_token;                 /**< The store token of an ongoing peer rank update via a call to @ref pm_peer_rank_highest. If @ref PM_STORE_TOKEN_INVALID, there is no ongoing update. */
 static uint32_t                      m_current_highest_peer_rank;       /**< The current highest peer rank. Used by @ref pm_peer_rank_highest. */
 static pm_peer_id_t                  m_highest_ranked_peer;             /**< The peer with the highest peer rank. Used by @ref pm_peer_rank_highest. */
-static pm_evt_handler_t              m_evt_handlers[MAX_REGISTRANTS];   /**< The subscribers to Peer Manager events, as registered through @ref pm_register. */
+static pm_evt_handler_t              m_evt_handlers[PM_MAX_REGISTRANTS];/**< The subscribers to Peer Manager events, as registered through @ref pm_register. */
 static uint8_t                       m_n_registrants;                   /**< The number of event handlers registered through @ref pm_register. */
-static ble_conn_state_user_flag_id_t m_pairing_flag_id;                 /**< The flag ID for which connections are paired. */
-static ble_conn_state_user_flag_id_t m_bonding_flag_id;                 /**< The flag ID for which connections are bonded. */
 
 
 /**@brief Function for sending a Peer Manager event to all subscribers.
  *
  * @param[in]  p_pm_evt  The event to send.
  */
-static void evt_send(pm_evt_t * p_pm_evt)
+static void evt_send(pm_evt_t const * p_pm_evt)
 {
     for (int i = 0; i < m_n_registrants; i++)
     {
@@ -84,84 +83,83 @@ static void evt_send(pm_evt_t * p_pm_evt)
 }
 
 
+#if PM_PEER_RANKS_ENABLED == 1
+/**@brief Function for initializing peer rank static variables.
+ */
+static void rank_vars_update(void)
+{
+    ret_code_t err_code = pm_peer_ranks_get(&m_highest_ranked_peer,
+                                            &m_current_highest_peer_rank,
+                                            NULL,
+                                            NULL);
+
+    m_peer_rank_initialized = ((err_code == NRF_SUCCESS) || (err_code == NRF_ERROR_NOT_FOUND));
+}
+#endif
+
+
 /**@brief Event handler for events from the Peer Database module.
  *        This handler is extern in the Peer Database module.
  *
  * @param[in]  p_pdb_evt  The incoming Peer Database event.
  */
-void pm_pdb_evt_handler(pdb_evt_t const * p_pdb_evt)
+void pm_pdb_evt_handler(pm_evt_t * p_pdb_evt)
 {
     bool send_evt = true;
-    pm_evt_t pm_evt;
 
-    memset(&pm_evt, 0, sizeof(pm_evt_t));
-    pm_evt.peer_id = p_pdb_evt->peer_id;
-    pm_evt.conn_handle = im_conn_handle_get(pm_evt.peer_id);
+    p_pdb_evt->conn_handle = im_conn_handle_get(p_pdb_evt->peer_id);
 
     switch (p_pdb_evt->evt_id)
     {
-        case PDB_EVT_WRITE_BUF_STORED:
-            pm_evt.evt_id = PM_EVT_PEER_DATA_UPDATE_SUCCEEDED;
-            pm_evt.params.peer_data_update_succeeded.data_id       = p_pdb_evt->data_id;
-            pm_evt.params.peer_data_update_succeeded.action        = PM_PEER_DATA_OP_UPDATE;
-            pm_evt.params.peer_data_update_succeeded.token         = PM_STORE_TOKEN_INVALID;
-            pm_evt.params.peer_data_update_succeeded.flash_changed = true;
-            break;
-
-        case PDB_EVT_RAW_STORED:
-            pm_evt.evt_id = PM_EVT_PEER_DATA_UPDATE_SUCCEEDED;
-            pm_evt.params.peer_data_update_succeeded.data_id = p_pdb_evt->data_id;
-            pm_evt.params.peer_data_update_succeeded.action  = PM_PEER_DATA_OP_UPDATE;
-            pm_evt.params.peer_data_update_succeeded.token
-                                            = p_pdb_evt->params.raw_stored_evt.store_token;
-            pm_evt.params.peer_data_update_succeeded.flash_changed = true;
-
-            if (    (m_peer_rank_token != PM_STORE_TOKEN_INVALID)
-                && (m_peer_rank_token == p_pdb_evt->params.raw_stored_evt.store_token))
+#if PM_PEER_RANKS_ENABLED == 1
+        case PM_EVT_PEER_DATA_UPDATE_SUCCEEDED:
+            if (p_pdb_evt->params.peer_data_update_succeeded.action == PM_PEER_DATA_OP_UPDATE)
             {
-                m_peer_rank_token     = PM_STORE_TOKEN_INVALID;
-                m_highest_ranked_peer = pm_evt.peer_id;
+                if (   (m_peer_rank_token != PM_STORE_TOKEN_INVALID)
+                    && (m_peer_rank_token == p_pdb_evt->params.peer_data_update_succeeded.token))
+                {
+                    m_peer_rank_token     = PM_STORE_TOKEN_INVALID;
+                    m_highest_ranked_peer = p_pdb_evt->peer_id;
 
-                pm_evt.params.peer_data_update_succeeded.token = PM_STORE_TOKEN_INVALID;
+                    p_pdb_evt->params.peer_data_update_succeeded.token = PM_STORE_TOKEN_INVALID;
+                }
+                else if (    m_peer_rank_initialized
+                         && (p_pdb_evt->peer_id == m_highest_ranked_peer)
+                         && (p_pdb_evt->params.peer_data_update_succeeded.data_id
+                                                == PM_PEER_DATA_ID_PEER_RANK))
+                {
+                    // Update peer rank variable if highest ranked peer has changed its rank.
+                    rank_vars_update();
+                }
+            }
+            else if (p_pdb_evt->params.peer_data_update_succeeded.action == PM_PEER_DATA_OP_DELETE)
+            {
+                if (    m_peer_rank_initialized
+                    && (p_pdb_evt->peer_id == m_highest_ranked_peer)
+                    && (p_pdb_evt->params.peer_data_update_succeeded.data_id == PM_PEER_DATA_ID_PEER_RANK))
+                {
+                    // Update peer rank variable if highest ranked peer has deleted its rank.
+                    rank_vars_update();
+                }
             }
             break;
 
-        case PDB_EVT_RAW_STORE_FAILED:
-            pm_evt.evt_id = PM_EVT_PEER_DATA_UPDATE_FAILED;
-            pm_evt.params.peer_data_update_failed.data_id = p_pdb_evt->data_id;
-            pm_evt.params.peer_data_update_failed.action  = PM_PEER_DATA_OP_UPDATE;
-            pm_evt.params.peer_data_update_failed.token
-                                            = p_pdb_evt->params.error_raw_store_evt.store_token;
-            pm_evt.params.peer_data_update_failed.error
-                                            = p_pdb_evt->params.error_raw_store_evt.err_code;
-
-            if (    (m_peer_rank_token != PM_STORE_TOKEN_INVALID)
-                && (m_peer_rank_token == p_pdb_evt->params.raw_stored_evt.store_token))
+        case PM_EVT_PEER_DATA_UPDATE_FAILED:
+            if (p_pdb_evt->params.peer_data_update_succeeded.action == PM_PEER_DATA_OP_UPDATE)
             {
-                m_peer_rank_token            = PM_STORE_TOKEN_INVALID;
-                m_current_highest_peer_rank -= 1;
+                if (   (m_peer_rank_token != PM_STORE_TOKEN_INVALID)
+                    && (m_peer_rank_token == p_pdb_evt->params.peer_data_update_failed.token))
+                {
+                    m_peer_rank_token            = PM_STORE_TOKEN_INVALID;
+                    m_current_highest_peer_rank -= 1;
 
-                pm_evt.params.peer_data_update_succeeded.token = PM_STORE_TOKEN_INVALID;
+                    p_pdb_evt->params.peer_data_update_succeeded.token = PM_STORE_TOKEN_INVALID;
+                }
             }
             break;
+#endif
 
-        case PDB_EVT_CLEARED:
-            pm_evt.evt_id = PM_EVT_PEER_DATA_UPDATE_SUCCEEDED;
-            pm_evt.params.peer_data_update_succeeded.data_id = p_pdb_evt->data_id;
-            pm_evt.params.peer_data_update_succeeded.action  = PM_PEER_DATA_OP_DELETE;
-            pm_evt.params.peer_data_update_succeeded.token   = PM_STORE_TOKEN_INVALID;
-            break;
-
-        case PDB_EVT_CLEAR_FAILED:
-            pm_evt.evt_id = PM_EVT_PEER_DATA_UPDATE_FAILED;
-            pm_evt.params.peer_data_update_failed.data_id = p_pdb_evt->data_id;
-            pm_evt.params.peer_data_update_failed.action  = PM_PEER_DATA_OP_DELETE;
-            pm_evt.params.peer_data_update_failed.error
-                                                    = p_pdb_evt->params.clear_failed_evt.err_code;
-            break;
-
-        case PDB_EVT_PEER_FREED:
-            pm_evt.evt_id = PM_EVT_PEER_DELETE_SUCCEEDED;
+        case PM_EVT_PEER_DELETE_SUCCEEDED:
             // Check that no peers marked for deletion are left.
             if (m_deleting_all
                 && (pdb_next_peer_id_get(PM_PEER_ID_INVALID) == PM_PEER_ID_INVALID)
@@ -176,17 +174,26 @@ void pm_pdb_evt_handler(pdb_evt_t const * p_pdb_evt)
                 pm_delete_all_evt.peer_id     = PM_PEER_ID_INVALID;
                 pm_delete_all_evt.conn_handle = BLE_CONN_HANDLE_INVALID;
 
+                send_evt = false;
+
+                // Forward the event to all registered Peer Manager event handlers.
+                evt_send(p_pdb_evt); // Ensure that PEER_DELETE_SUCCEEDED arrives before PEERS_DELETE_SUCCEEDED.
                 evt_send(&pm_delete_all_evt);
             }
+
+#if PM_PEER_RANKS_ENABLED == 1
+            if (m_peer_rank_initialized && (p_pdb_evt->peer_id == m_highest_ranked_peer))
+            {
+                // Update peer rank variable if highest ranked peer has been deleted.
+                rank_vars_update();
+            }
+#endif
             break;
 
-        case PDB_EVT_PEER_FREE_FAILED:
-            pm_evt.evt_id = PM_EVT_PEER_DELETE_FAILED;
-            pm_evt.params.peer_delete_failed.error
-                                                = p_pdb_evt->params.peer_free_failed_evt.err_code;
+        case PM_EVT_PEER_DELETE_FAILED:
             if (m_deleting_all)
             {
-                // pm_peers_delete() has been called and has thus failed.
+                // pm_peers_delete() was called and has thus failed.
 
                 m_deleting_all = false;
 
@@ -196,33 +203,25 @@ void pm_pdb_evt_handler(pdb_evt_t const * p_pdb_evt)
                 pm_delete_all_evt.peer_id     = PM_PEER_ID_INVALID;
                 pm_delete_all_evt.conn_handle = BLE_CONN_HANDLE_INVALID;
                 pm_delete_all_evt.params.peers_delete_failed_evt.error
-                                              = p_pdb_evt->params.peer_free_failed_evt.err_code;
+                                              = p_pdb_evt->params.peer_delete_failed.error;
 
+                send_evt = false;
+
+                // Forward the event to all registered Peer Manager event handlers.
+                evt_send(p_pdb_evt); // Ensure that PEER_DELETE_FAILED arrives before PEERS_DELETE_FAILED.
                 evt_send(&pm_delete_all_evt);
             }
             break;
 
-        case PDB_EVT_COMPRESSED:
-            send_evt = false;
-            // Do nothing
-            break;
-
-        case PDB_EVT_ERROR_NO_MEM:
-            pm_evt.evt_id = PM_EVT_STORAGE_FULL;
-            break;
-
-        case PDB_EVT_ERROR_UNEXPECTED:
-            pm_evt.evt_id = PM_EVT_ERROR_UNEXPECTED;
-            break;
-
         default:
-            send_evt = false;
+            // Do nothing.
             break;
     }
 
     if (send_evt)
     {
-        evt_send(&pm_evt);
+        // Forward the event to all registered Peer Manager event handlers.
+        evt_send(p_pdb_evt);
     }
 }
 
@@ -232,136 +231,12 @@ void pm_pdb_evt_handler(pdb_evt_t const * p_pdb_evt)
  *
  * @param[in]  p_sm_evt  The incoming Security Manager event.
  */
-void pm_sm_evt_handler(sm_evt_t const * p_sm_evt)
+void pm_sm_evt_handler(pm_evt_t * p_sm_evt)
 {
-    bool find_peer_id = true;
-    bool send_evt     = true;
-    pm_evt_t pm_evt;
-    memset(&pm_evt, 0, sizeof(pm_evt_t));
-    pm_evt.conn_handle = p_sm_evt->conn_handle;
+    VERIFY_PARAM_NOT_NULL_VOID(p_sm_evt);
 
-    switch (p_sm_evt->evt_id)
-    {
-        case SM_EVT_SLAVE_SECURITY_REQ:
-            find_peer_id = false;
-            send_evt     = false;
-            break;
-
-        case SM_EVT_SEC_PROCEDURE_START:
-        {
-            pm_evt.evt_id = PM_EVT_CONN_SEC_START;
-            bool pairing = p_sm_evt->params.sec_procedure_start.procedure
-                                != PM_LINK_SECURED_PROCEDURE_ENCRYPTION;
-            bool bonding = p_sm_evt->params.sec_procedure_start.procedure
-                                == PM_LINK_SECURED_PROCEDURE_BONDING;
-            ble_conn_state_user_flag_set(p_sm_evt->conn_handle, m_pairing_flag_id, pairing);
-            ble_conn_state_user_flag_set(p_sm_evt->conn_handle, m_bonding_flag_id, bonding);
-            break;
-        }
-
-        case SM_EVT_PAIRING_SUCCESS:
-            pm_evt.evt_id = PM_EVT_CONN_SEC_SUCCEEDED;
-            pm_evt.params.conn_sec_succeeded.procedure =
-                        p_sm_evt->params.pairing_success.bonded
-                        ? PM_LINK_SECURED_PROCEDURE_BONDING
-                        : PM_LINK_SECURED_PROCEDURE_PAIRING;
-            ble_conn_state_user_flag_set(p_sm_evt->conn_handle, m_pairing_flag_id, true);
-            ble_conn_state_user_flag_set(p_sm_evt->conn_handle,
-                                         m_bonding_flag_id,
-                                         p_sm_evt->params.pairing_success.bonded
-            );
-            break;
-
-        case SM_EVT_PAIRING_FAIL:
-            pm_evt.evt_id = PM_EVT_CONN_SEC_FAILED;
-            pm_evt.params.conn_sec_failed.procedure =
-                        ble_conn_state_user_flag_get(p_sm_evt->conn_handle, m_bonding_flag_id)
-                        ? PM_LINK_SECURED_PROCEDURE_BONDING
-                        : PM_LINK_SECURED_PROCEDURE_PAIRING;
-            pm_evt.params.conn_sec_failed.error_src
-                = p_sm_evt->params.pairing_failed.error_src;
-            pm_evt.params.conn_sec_failed.error
-                = p_sm_evt->params.pairing_failed.error;
-            break;
-
-        case SM_EVT_LINK_ENCRYPTION_UPDATE:
-            if (!ble_conn_state_user_flag_get(p_sm_evt->conn_handle, m_pairing_flag_id))
-            {
-                pm_evt.evt_id = PM_EVT_CONN_SEC_SUCCEEDED;
-                pm_evt.params.conn_sec_succeeded.procedure = PM_LINK_SECURED_PROCEDURE_ENCRYPTION;
-            }
-            else
-            {
-                find_peer_id = false;
-                send_evt     = false;
-            }
-            break;
-
-        case SM_EVT_LINK_ENCRYPTION_FAILED:
-            pm_evt.evt_id = PM_EVT_CONN_SEC_FAILED;
-            pm_evt.params.conn_sec_failed.procedure
-                            = PM_LINK_SECURED_PROCEDURE_ENCRYPTION;
-            pm_evt.params.conn_sec_failed.error_src
-                            = p_sm_evt->params.link_encryption_failed.error_src;
-            pm_evt.params.conn_sec_failed.error
-                            = p_sm_evt->params.link_encryption_failed.error;
-            break;
-
-        case SM_EVT_BONDING_INFO_STORED:
-            pm_evt.evt_id  = PM_EVT_PEER_DATA_UPDATE_SUCCEEDED;
-            pm_evt.peer_id = p_sm_evt->params.bonding_info_stored.peer_id;
-            pm_evt.params.peer_data_update_succeeded.data_id = PM_PEER_DATA_ID_BONDING;
-            pm_evt.params.peer_data_update_succeeded.action  = PM_PEER_DATA_OP_UPDATE;
-            find_peer_id = false;
-            break;
-
-        case SM_EVT_ERROR_BONDING_INFO:
-            pm_evt.evt_id = PM_EVT_PEER_DATA_UPDATE_FAILED;
-            pm_evt.peer_id = p_sm_evt->params.error_bonding_info.peer_id;
-            pm_evt.params.peer_data_update_failed.data_id = PM_PEER_DATA_ID_BONDING;
-            pm_evt.params.peer_data_update_failed.action  = PM_PEER_DATA_OP_UPDATE;
-            pm_evt.params.peer_data_update_failed.error
-                = p_sm_evt->params.error_bonding_info.error;
-            find_peer_id = false;
-            break;
-
-        case SM_EVT_ERROR_UNEXPECTED:
-            pm_evt.evt_id = PM_EVT_ERROR_UNEXPECTED;
-            pm_evt.params.error_unexpected.error = p_sm_evt->params.error_unexpected.error;
-            break;
-
-        case SM_EVT_ERROR_NO_MEM:
-            pm_evt.evt_id = PM_EVT_STORAGE_FULL;
-            break;
-
-        case SM_EVT_ERROR_SMP_TIMEOUT:
-            pm_evt.evt_id = PM_EVT_CONN_SEC_FAILED;
-            pm_evt.params.conn_sec_failed.procedure
-                        = ble_conn_state_user_flag_get(p_sm_evt->conn_handle, m_bonding_flag_id)
-                        ? PM_LINK_SECURED_PROCEDURE_BONDING
-                        : PM_LINK_SECURED_PROCEDURE_PAIRING;
-            pm_evt.params.conn_sec_failed.error_src  = BLE_GAP_SEC_STATUS_SOURCE_LOCAL;
-            pm_evt.params.conn_sec_failed.error      = PM_CONN_SEC_ERROR_SMP_TIMEOUT;
-            break;
-
-        case SM_EVT_CONN_SEC_CONFIG_REQ:
-            pm_evt.evt_id = PM_EVT_CONN_SEC_CONFIG_REQ;
-            break;
-
-        default:
-            send_evt = false;
-            break;
-    }
-
-    if (find_peer_id)
-    {
-        pm_evt.peer_id = im_peer_id_get_by_conn_handle(p_sm_evt->conn_handle);
-    }
-
-    if (send_evt)
-    {
-        evt_send(&pm_evt);
-    }
+    // Forward the event to all registered Peer Manager event handlers.
+    evt_send(p_sm_evt);
 }
 
 
@@ -370,70 +245,10 @@ void pm_sm_evt_handler(sm_evt_t const * p_sm_evt)
  *
  * @param[in]  p_gcm_evt  The incoming GATT Cache Manager event.
  */
-void pm_gcm_evt_handler(gcm_evt_t const * p_gcm_evt)
+void pm_gcm_evt_handler(pm_evt_t * p_gcm_evt)
 {
-    bool send_evt = true;
-    pm_evt_t pm_evt;
-
-    memset(&pm_evt, 0, sizeof(pm_evt_t));
-    pm_evt.peer_id = p_gcm_evt->peer_id;
-    pm_evt.conn_handle = im_conn_handle_get(pm_evt.peer_id);
-
-    switch (p_gcm_evt->evt_id)
-    {
-        case GCM_EVT_LOCAL_DB_CACHE_STORED:
-            pm_evt.evt_id = PM_EVT_PEER_DATA_UPDATE_SUCCEEDED;
-            pm_evt.params.peer_data_update_succeeded.action = PM_PEER_DATA_OP_UPDATE;
-            pm_evt.params.peer_data_update_succeeded.data_id =  PM_PEER_DATA_ID_GATT_LOCAL;
-            break;
-
-        case GCM_EVT_LOCAL_DB_CACHE_UPDATED:
-            pm_evt.evt_id = PM_EVT_PEER_DATA_UPDATE_SUCCEEDED;
-            pm_evt.params.peer_data_update_succeeded.action = PM_PEER_DATA_OP_UPDATE;
-            pm_evt.params.peer_data_update_succeeded.data_id =  PM_PEER_DATA_ID_GATT_LOCAL;
-            break;
-
-        case GCM_EVT_LOCAL_DB_CACHE_APPLIED:
-            pm_evt.evt_id = PM_EVT_LOCAL_DB_CACHE_APPLIED;
-            break;
-
-        case GCM_EVT_ERROR_LOCAL_DB_CACHE_APPLY:
-            pm_evt.evt_id = PM_EVT_LOCAL_DB_CACHE_APPLY_FAILED;
-            break;
-
-        case GCM_EVT_REMOTE_DB_CACHE_UPDATED:
-            pm_evt.evt_id = PM_EVT_PEER_DATA_UPDATE_SUCCEEDED;
-            pm_evt.params.peer_data_update_succeeded.action = PM_PEER_DATA_OP_UPDATE;
-            pm_evt.params.peer_data_update_succeeded.data_id =  PM_PEER_DATA_ID_GATT_REMOTE;
-            break;
-
-        case GCM_EVT_SERVICE_CHANGED_IND_SENT:
-            pm_evt.evt_id = PM_EVT_SERVICE_CHANGED_IND_SENT;
-            break;
-
-        case GCM_EVT_SERVICE_CHANGED_IND_CONFIRMED:
-            pm_evt.evt_id = PM_EVT_SERVICE_CHANGED_IND_CONFIRMED;
-            break;
-
-        case GCM_EVT_ERROR_DATA_SIZE:
-            send_evt = false;
-            break;
-
-        case GCM_EVT_ERROR_STORAGE_FULL:
-            pm_evt.evt_id = PM_EVT_STORAGE_FULL;
-            break;
-
-        case GCM_EVT_ERROR_UNEXPECTED:
-            pm_evt.evt_id = PM_EVT_ERROR_UNEXPECTED;
-            pm_evt.params.error_unexpected.error = p_gcm_evt->params.error_unexpected.error;
-            pm_evt.conn_handle = p_gcm_evt->params.error_unexpected.conn_handle;
-            break;
-    }
-
-    if (send_evt)
-    {
-        evt_send(&pm_evt);
-    }
+    // Forward the event to all registered Peer Manager event handlers.
+    evt_send(p_gcm_evt);
 }
 
 
@@ -442,33 +257,19 @@ void pm_gcm_evt_handler(gcm_evt_t const * p_gcm_evt)
  *
  * @param[in]  p_im_evt  The incoming ID Manager event.
  */
-void pm_im_evt_handler(im_evt_t const * p_im_evt)
+void pm_im_evt_handler(pm_evt_t * p_im_evt)
 {
-    pm_evt_t pm_evt;
-    ret_code_t err_code;
-
-    switch (p_im_evt->evt_id)
-    {
-        case IM_EVT_DUPLICATE_ID:
-            // Attempt to delete the duplicate data to free space and avoid finding old data when
-            // scanning in the future
-            err_code = pm_peer_delete(p_im_evt->params.duplicate_id.peer_id_2);
-            UNUSED_VARIABLE(err_code);
-            break;
-
-        case IM_EVT_BONDED_PEER_CONNECTED:
-            ble_conn_state_user_flag_set(p_im_evt->conn_handle, m_bonding_flag_id, true);
-            memset(&pm_evt, 0, sizeof(pm_evt_t));
-            pm_evt.conn_handle = p_im_evt->conn_handle;
-            pm_evt.peer_id = im_peer_id_get_by_conn_handle(p_im_evt->conn_handle);
-            pm_evt.evt_id = PM_EVT_BONDED_PEER_CONNECTED;
-            evt_send(&pm_evt);
-            break;
-    }
+    // Forward the event to all registered Peer Manager event handlers.
+    evt_send(p_im_evt);
 }
 
-
-void pm_on_ble_evt(ble_evt_t * p_ble_evt)
+/**
+ * @brief Function for handling BLE events.
+ *
+ * @param[in]   p_ble_evt       Event received from the BLE stack.
+ * @param[in]   p_context       Context.
+ */
+static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
 {
     VERIFY_MODULE_INITIALIZED_VOID();
 
@@ -477,6 +278,8 @@ void pm_on_ble_evt(ble_evt_t * p_ble_evt)
     gcm_ble_evt_handler(p_ble_evt);
 }
 
+NRF_SDH_BLE_OBSERVER(m_ble_evt_observer, PM_BLE_OBSERVER_PRIO, ble_evt_handler, NULL);
+
 
 /**@brief Function for resetting the internal state of this module.
  */
@@ -484,8 +287,6 @@ static void internal_state_reset()
 {
     m_highest_ranked_peer = PM_PEER_ID_INVALID;
     m_peer_rank_token     = PM_STORE_TOKEN_INVALID;
-    m_pairing_flag_id     = BLE_CONN_STATE_USER_FLAG_INVALID;
-    m_bonding_flag_id     = BLE_CONN_STATE_USER_FLAG_INVALID;
 }
 
 
@@ -537,20 +338,14 @@ ret_code_t pm_init(void)
 
     internal_state_reset();
 
-    m_pairing_flag_id = ble_conn_state_user_flag_acquire();
-    if (m_pairing_flag_id == BLE_CONN_STATE_USER_FLAG_INVALID)
-    {
-        return NRF_ERROR_INTERNAL;
-    }
-
-    m_bonding_flag_id = ble_conn_state_user_flag_acquire();
-    if (m_bonding_flag_id == BLE_CONN_STATE_USER_FLAG_INVALID)
-    {
-        return NRF_ERROR_INTERNAL;
-    }
-
     m_peer_rank_initialized = false;
     m_module_initialized    = true;
+
+    // If PM_PEER_RANKS_ENABLED is 0, these variables are unused.
+    UNUSED_VARIABLE(m_peer_rank_initialized);
+    UNUSED_VARIABLE(m_peer_rank_token);
+    UNUSED_VARIABLE(m_current_highest_peer_rank);
+    UNUSED_VARIABLE(m_highest_ranked_peer);
 
     return NRF_SUCCESS;
 }
@@ -560,7 +355,7 @@ ret_code_t pm_register(pm_evt_handler_t event_handler)
 {
     VERIFY_MODULE_INITIALIZED();
 
-    if (m_n_registrants >= MAX_REGISTRANTS)
+    if (m_n_registrants >= PM_MAX_REGISTRANTS)
     {
         return NRF_ERROR_NO_MEM;
     }
@@ -594,27 +389,41 @@ ret_code_t pm_conn_secure(uint16_t conn_handle, bool force_repairing)
 
     err_code = sm_link_secure(conn_handle, force_repairing);
 
+    if (err_code == NRF_ERROR_INVALID_STATE)
+    {
+        err_code = NRF_ERROR_BUSY;
+    }
+
     return err_code;
 }
 
 
 void pm_conn_sec_config_reply(uint16_t conn_handle, pm_conn_sec_config_t * p_conn_sec_config)
 {
-    sm_conn_sec_config_reply(conn_handle, p_conn_sec_config);
+    if (p_conn_sec_config != NULL)
+    {
+        sm_conn_sec_config_reply(conn_handle, p_conn_sec_config);
+    }
 }
 
 
-ret_code_t pm_sec_params_reply(uint16_t conn_handle, ble_gap_sec_params_t * p_sec_params)
+ret_code_t pm_conn_sec_params_reply(uint16_t               conn_handle,
+                                    ble_gap_sec_params_t * p_sec_params,
+                                    void           const * p_context)
 {
     VERIFY_MODULE_INITIALIZED();
-    return NRF_SUCCESS;
+
+    return sm_sec_params_reply(conn_handle, p_sec_params, p_context);
 }
 
 
 void pm_local_database_has_changed(void)
 {
+#if !defined(PM_SERVICE_CHANGED_ENABLED) || (PM_SERVICE_CHANGED_ENABLED == 1)
     VERIFY_MODULE_INITIALIZED_VOID();
+
     gcm_local_database_has_changed();
+#endif
 }
 
 
@@ -647,6 +456,21 @@ ret_code_t pm_privacy_get(pm_privacy_params_t * p_privacy_params)
     VERIFY_PARAM_NOT_NULL(p_privacy_params);
     VERIFY_PARAM_NOT_NULL(p_privacy_params->p_device_irk);
     return im_privacy_get(p_privacy_params);
+}
+
+
+bool pm_address_resolve(ble_gap_addr_t const * p_addr, ble_gap_irk_t const * p_irk)
+{
+    VERIFY_MODULE_INITIALIZED();
+
+    if ((p_addr == NULL) || (p_irk == NULL))
+    {
+        return false;
+    }
+    else
+    {
+        return im_address_resolve(p_addr, p_irk);
+    }
 }
 
 
@@ -698,7 +522,7 @@ ret_code_t pm_conn_sec_status_get(uint16_t conn_handle, pm_conn_sec_status_t * p
     }
 
     p_conn_sec_status->connected      = (status == BLE_CONN_STATUS_CONNECTED);
-    p_conn_sec_status->bonded         = ble_conn_state_user_flag_get(conn_handle, m_bonding_flag_id);
+    p_conn_sec_status->bonded         = (im_peer_id_get_by_conn_handle(conn_handle) != PM_PEER_ID_INVALID);
     p_conn_sec_status->encrypted      = ble_conn_state_encrypted(conn_handle);
     p_conn_sec_status->mitm_protected = ble_conn_state_mitm_protected(conn_handle);
     return NRF_SUCCESS;
@@ -799,9 +623,9 @@ ret_code_t pm_peer_data_remote_db_load(pm_peer_id_t        peer_id,
 }
 
 
-ret_code_t pm_peer_data_app_data_load(pm_peer_id_t       peer_id,
-                                      uint8_t          * p_data,
-                                      uint16_t         * p_length)
+ret_code_t pm_peer_data_app_data_load(pm_peer_id_t peer_id,
+                                      void       * p_data,
+                                      uint16_t   * p_length)
 {
     return pm_peer_data_load(peer_id,
                              PM_PEER_DATA_ID_APPLICATION,
@@ -821,6 +645,17 @@ ret_code_t pm_peer_data_store(pm_peer_id_t       peer_id,
     if (ALIGN_NUM(4, length) != length)
     {
         return NRF_ERROR_INVALID_PARAM;
+    }
+
+    if (data_id == PM_PEER_DATA_ID_BONDING)
+    {
+        pm_peer_id_t dupl_peer_id;
+        dupl_peer_id = im_find_duplicate_bonding_data((pm_peer_data_bonding_t *) p_data, peer_id);
+
+        if (dupl_peer_id != PM_PEER_ID_INVALID)
+        {
+            return NRF_ERROR_FORBIDDEN;
+        }
     }
 
     pm_peer_data_flash_t peer_data;
@@ -859,7 +694,7 @@ ret_code_t pm_peer_data_remote_db_store(pm_peer_id_t              peer_id,
 
 
 ret_code_t pm_peer_data_app_data_store(pm_peer_id_t       peer_id,
-                                       uint8_t    const * p_data,
+                                       void       const * p_data,
                                        uint16_t           length,
                                        pm_store_token_t * p_token)
 {
@@ -960,6 +795,21 @@ ret_code_t pm_peers_delete(void)
     m_deleting_all = true;
 
     pm_peer_id_t current_peer_id = pdb_next_peer_id_get(PM_PEER_ID_INVALID);
+
+    if (current_peer_id == PM_PEER_ID_INVALID)
+    {
+        // No peers bonded.
+        m_deleting_all = false;
+
+        pm_evt_t pm_delete_all_evt;
+        memset(&pm_delete_all_evt, 0, sizeof(pm_evt_t));
+        pm_delete_all_evt.evt_id      = PM_EVT_PEERS_DELETE_SUCCEEDED;
+        pm_delete_all_evt.peer_id     = PM_PEER_ID_INVALID;
+        pm_delete_all_evt.conn_handle = BLE_CONN_HANDLE_INVALID;
+
+        evt_send(&pm_delete_all_evt);
+    }
+
     while (current_peer_id != PM_PEER_ID_INVALID)
     {
         ret_code_t err_code = pm_peer_delete(current_peer_id);
@@ -980,6 +830,9 @@ ret_code_t pm_peer_ranks_get(pm_peer_id_t * p_highest_ranked_peer,
                              pm_peer_id_t * p_lowest_ranked_peer,
                              uint32_t     * p_lowest_rank)
 {
+#if PM_PEER_RANKS_ENABLED == 0
+    return NRF_ERROR_NOT_SUPPORTED;
+#else
     VERIFY_MODULE_INITIALIZED();
 
     pm_peer_id_t         peer_id      = pdb_next_peer_id_get(PM_PEER_ID_INVALID);
@@ -1044,26 +897,25 @@ ret_code_t pm_peer_ranks_get(pm_peer_id_t * p_highest_ranked_peer,
         err_code = NRF_ERROR_INTERNAL;
     }
     return err_code;
+#endif
 }
 
 
-/**@brief Function for initializing peer rank statistics.
+#if PM_PEER_RANKS_ENABLED == 1
+/**@brief Function for initializing peer rank functionality.
  */
 static void rank_init(void)
 {
-    ret_code_t err_code = pm_peer_ranks_get(&m_highest_ranked_peer,
-                                            &m_current_highest_peer_rank,
-                                            NULL,
-                                            NULL);
-    if ((err_code == NRF_SUCCESS) || (err_code == NRF_ERROR_NOT_FOUND))
-    {
-        m_peer_rank_initialized = true;
-    }
+    rank_vars_update();
 }
+#endif
 
 
 ret_code_t pm_peer_rank_highest(pm_peer_id_t peer_id)
 {
+#if PM_PEER_RANKS_ENABLED == 0
+    return NRF_ERROR_NOT_SUPPORTED;
+#else
     VERIFY_MODULE_INITIALIZED();
 
     ret_code_t err_code;
@@ -1105,19 +957,27 @@ ret_code_t pm_peer_rank_highest(pm_peer_id_t peer_id)
         }
         else
         {
-            m_current_highest_peer_rank += 1;
-            err_code = pdb_raw_store(peer_id, &peer_data, &m_peer_rank_token);
-            if (err_code != NRF_SUCCESS)
+            if (m_current_highest_peer_rank == UINT32_MAX)
             {
-                m_peer_rank_token    = PM_STORE_TOKEN_INVALID;
-                m_current_highest_peer_rank -= 1;
+                err_code = NRF_ERROR_RESOURCES;
+            }
+            else
+            {
+                m_current_highest_peer_rank += 1;
+                err_code = pdb_raw_store(peer_id, &peer_data, &m_peer_rank_token);
+                if (err_code != NRF_SUCCESS)
                 {
-                if ((err_code != NRF_ERROR_BUSY) && (err_code != NRF_ERROR_STORAGE_FULL))
-                    err_code = NRF_ERROR_INTERNAL;
+                    m_peer_rank_token    = PM_STORE_TOKEN_INVALID;
+                    m_current_highest_peer_rank -= 1;
+                    {
+                    if ((err_code != NRF_ERROR_BUSY) && (err_code != NRF_ERROR_STORAGE_FULL))
+                        err_code = NRF_ERROR_INTERNAL;
+                    }
                 }
             }
         }
     }
     return err_code;
+#endif
 }
 #endif // NRF_MODULE_ENABLED(PEER_MANAGER)

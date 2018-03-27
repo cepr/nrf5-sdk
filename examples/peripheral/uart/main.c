@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  * @defgroup uart_example_main main.c
  * @{
@@ -56,6 +55,13 @@
 #include "nrf_delay.h"
 #include "nrf.h"
 #include "bsp.h"
+#if defined (UART_PRESENT)
+#include "nrf_uart.h"
+#endif
+#if defined (UARTE_PRESENT)
+#include "nrf_uarte.h"
+#endif
+
 
 //#define ENABLE_LOOPBACK_TEST  /**< if defined, then this example will be a loopback test, which means that TX should be connected to RX to get data loopback. */
 
@@ -76,8 +82,10 @@ void uart_error_handle(app_uart_evt_t * p_event)
 }
 
 
-
 #ifdef ENABLE_LOOPBACK_TEST
+/* Use flow control in loopback test. */
+#define UART_HWFC APP_UART_FLOW_CONTROL_ENABLED
+
 /** @brief Function for setting the @ref ERROR_PIN high, and then enter an infinite loop.
  */
 static void show_error(void)
@@ -116,8 +124,9 @@ static void uart_loopback_test()
     }
     return;
 }
-
-
+#else
+/* When UART is used for communication with the host do not use flow control.*/
+#define UART_HWFC APP_UART_FLOW_CONTROL_DISABLED
 #endif
 
 
@@ -128,7 +137,7 @@ int main(void)
 {
     uint32_t err_code;
 
-    bsp_board_leds_init();
+    bsp_board_init(BSP_INIT_LEDS);
 
     const app_uart_comm_params_t comm_params =
       {
@@ -136,9 +145,13 @@ int main(void)
           TX_PIN_NUMBER,
           RTS_PIN_NUMBER,
           CTS_PIN_NUMBER,
-          APP_UART_FLOW_CONTROL_ENABLED,
+          UART_HWFC,
           false,
-          UART_BAUDRATE_BAUDRATE_Baud115200
+#if defined (UART_PRESENT)
+          NRF_UART_BAUDRATE_115200
+#else
+          NRF_UARTE_BAUDRATE_115200
+#endif
       };
 
     APP_UART_FIFO_INIT(&comm_params,
@@ -151,7 +164,7 @@ int main(void)
     APP_ERROR_CHECK(err_code);
 
 #ifndef ENABLE_LOOPBACK_TEST
-    printf("\r\nStart: \r\n");
+    printf("\r\nUART example started.\r\n");
 
     while (true)
     {

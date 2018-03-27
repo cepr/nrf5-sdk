@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2012 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /**@file
  *
  * @defgroup ble_nus_c Nordic UART Service Client
@@ -49,8 +48,13 @@
  *           module. These APIs and types can be used by the application to perform discovery of
  *           the Nordic UART Service at the peer and interact with it.
  *
- * @note     The application must propagate BLE stack events to this module by calling
- *           ble_nus_c_on_ble_evt().
+ * @note    The application must register this module as BLE event observer using the
+ *          NRF_SDH_BLE_OBSERVER macro. Example:
+ *          @code
+ *              ble_nus_c_t instance;
+ *              NRF_SDH_BLE_OBSERVER(anything, BLE_NUS_C_BLE_OBSERVER_PRIO,
+ *                                   ble_nus_c_on_ble_evt, &instance);
+ *          @endcode
  *
  */
 
@@ -63,46 +67,81 @@
 #include "ble.h"
 #include "ble_gatt.h"
 #include "ble_db_discovery.h"
+#include "nrf_sdh_ble.h"
+
+#include "sdk_config.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define NUS_BASE_UUID                  {{0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x00, 0x00, 0x40, 0x6E}} /**< Used vendor specific UUID. */
-#define BLE_UUID_NUS_SERVICE           0x0001                      /**< The UUID of the Nordic UART Service. */
-#define BLE_UUID_NUS_TX_CHARACTERISTIC 0x0002                      /**< The UUID of the TX Characteristic. */
-#define BLE_UUID_NUS_RX_CHARACTERISTIC 0x0003                      /**< The UUID of the RX Characteristic. */
+/**@brief   Macro for defining a ble_nus_c instance.
+ *
+ * @param   _name   Name of the instance.
+ * @hideinitializer
+ */
+#define BLE_NUS_C_DEF(_name)                                                                        \
+static ble_nus_c_t _name;                                                                           \
+NRF_SDH_BLE_OBSERVER(_name ## _obs,                                                                 \
+                     BLE_NUS_C_BLE_OBSERVER_PRIO,                                                   \
+                     ble_nus_c_on_ble_evt, &_name)
 
-#define BLE_NUS_MAX_DATA_LEN           (GATT_MTU_SIZE_DEFAULT - 3) /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
+/** @brief Macro for defining multiple ble_nus_c instances.
+ *
+ * @param   _name   Name of the array of instances.
+ * @param   _cnt    Number of instances to define.
+ * @hideinitializer
+ */
+#define BLE_NUS_C_ARRAY_DEF(_name, _cnt)                 \
+static ble_nus_c_t _name[_cnt];                          \
+NRF_SDH_BLE_OBSERVERS(_name ## _obs,                     \
+                      BLE_NUS_C_BLE_OBSERVER_PRIO,       \
+                      ble_nus_c_on_ble_evt, &_name, _cnt)
+
+#define NUS_BASE_UUID                   {{0x9E, 0xCA, 0xDC, 0x24, 0x0E, 0xE5, 0xA9, 0xE0, 0x93, 0xF3, 0xA3, 0xB5, 0x00, 0x00, 0x40, 0x6E}} /**< Used vendor specific UUID. */
+
+#define BLE_UUID_NUS_SERVICE            0x0001                      /**< The UUID of the Nordic UART Service. */
+#define BLE_UUID_NUS_RX_CHARACTERISTIC  0x0002                      /**< The UUID of the RX Characteristic. */
+#define BLE_UUID_NUS_TX_CHARACTERISTIC  0x0003                      /**< The UUID of the TX Characteristic. */
+
+#define OPCODE_LENGTH 1
+#define HANDLE_LENGTH 2
+
+/**@brief   Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
+#if defined(NRF_SDH_BLE_GATT_MAX_MTU_SIZE) && (NRF_SDH_BLE_GATT_MAX_MTU_SIZE != 0)
+    #define BLE_NUS_MAX_DATA_LEN (NRF_SDH_BLE_GATT_MAX_MTU_SIZE - OPCODE_LENGTH - HANDLE_LENGTH)
+#else
+    #define BLE_NUS_MAX_DATA_LEN (BLE_GATT_MTU_SIZE_DEFAULT - OPCODE_LENGTH - HANDLE_LENGTH)
+    #warning NRF_SDH_BLE_GATT_MAX_MTU_SIZE is not defined.
+#endif
 
 
 /**@brief NUS Client event type. */
 typedef enum
 {
-    BLE_NUS_C_EVT_DISCOVERY_COMPLETE = 1, /**< Event indicating that the NUS service and its characteristics was found. */
-    BLE_NUS_C_EVT_NUS_RX_EVT,             /**< Event indicating that the central has received something from a peer. */
-    BLE_NUS_C_EVT_DISCONNECTED            /**< Event indicating that the NUS server has disconnected. */
+    BLE_NUS_C_EVT_DISCOVERY_COMPLETE,   /**< Event indicating that the NUS service and its characteristics was found. */
+    BLE_NUS_C_EVT_NUS_TX_EVT,           /**< Event indicating that the central has received something from a peer. */
+    BLE_NUS_C_EVT_DISCONNECTED          /**< Event indicating that the NUS server has disconnected. */
 } ble_nus_c_evt_type_t;
 
-
-/**@brief Handles on the connected peer device needed to interact with it.
-*/
-typedef struct {
-    uint16_t                nus_rx_handle;      /**< Handle of the NUS RX characteristic as provided by a discovery. */
-    uint16_t                nus_rx_cccd_handle; /**< Handle of the CCCD of the NUS RX characteristic as provided by a discovery. */
-    uint16_t                nus_tx_handle;      /**< Handle of the NUS TX characteristic as provided by a discovery. */
+/**@brief Handles on the connected peer device needed to interact with it. */
+typedef struct
+{
+    uint16_t nus_tx_handle;      /**< Handle of the NUS TX characteristic as provided by a discovery. */
+    uint16_t nus_tx_cccd_handle; /**< Handle of the CCCD of the NUS TX characteristic as provided by a discovery. */
+    uint16_t nus_rx_handle;      /**< Handle of the NUS RX characteristic as provided by a discovery. */
 } ble_nus_c_handles_t;
 
-
 /**@brief Structure containing the NUS event data received from the peer. */
-typedef struct {
+typedef struct
+{
     ble_nus_c_evt_type_t evt_type;
     uint16_t             conn_handle;
+    uint16_t             max_data_len;
     uint8_t            * p_data;
     uint8_t              data_len;
     ble_nus_c_handles_t  handles;     /**< Handles on which the Nordic Uart service characteristics was discovered on the peer device. This will be filled if the evt_type is @ref BLE_NUS_C_EVT_DISCOVERY_COMPLETE.*/
 } ble_nus_c_evt_t;
-
 
 // Forward declaration of the ble_nus_t type.
 typedef struct ble_nus_c_s ble_nus_c_t;
@@ -112,22 +151,20 @@ typedef struct ble_nus_c_s ble_nus_c_t;
  * @details This is the type of the event handler that should be provided by the application
  *          of this module to receive events.
  */
-typedef void (* ble_nus_c_evt_handler_t)(ble_nus_c_t * p_ble_nus_c, const ble_nus_c_evt_t * p_evt);
+typedef void (* ble_nus_c_evt_handler_t)(ble_nus_c_t * p_ble_nus_c, ble_nus_c_evt_t const * p_evt);
 
-
-/**@brief NUS Client structure.
- */
+/**@brief NUS Client structure. */
 struct ble_nus_c_s
 {
-    uint8_t                 uuid_type;          /**< UUID type. */
-    uint16_t                conn_handle;        /**< Handle of the current connection. Set with @ref ble_nus_c_handles_assign when connected. */
-    ble_nus_c_handles_t     handles;            /**< Handles on the connected peer device needed to interact with it. */
-    ble_nus_c_evt_handler_t evt_handler;        /**< Application event handler to be called when there is an event related to the NUS. */
+    uint8_t                 uuid_type;      /**< UUID type. */
+    uint16_t                conn_handle;    /**< Handle of the current connection. Set with @ref ble_nus_c_handles_assign when connected. */
+    ble_nus_c_handles_t     handles;        /**< Handles on the connected peer device needed to interact with it. */
+    ble_nus_c_evt_handler_t evt_handler;    /**< Application event handler to be called when there is an event related to the NUS. */
 };
 
-/**@brief NUS Client initialization structure.
- */
-typedef struct {
+/**@brief NUS Client initialization structure. */
+typedef struct
+{
     ble_nus_c_evt_handler_t evt_handler;
 } ble_nus_c_init_t;
 
@@ -171,15 +208,16 @@ uint32_t ble_nus_c_init(ble_nus_c_t * p_ble_nus_c, ble_nus_c_init_t * p_ble_nus_
  *            event is relevant to the NUS module, it is used to update
  *            internal variables and, if necessary, send events to the application.
  *
- * @param[in] p_ble_nus_c Pointer to the NUS client structure.
- * @param[in] p_ble_evt   Pointer to the BLE event.
+ * @param[in] p_ble_evt     Pointer to the BLE event.
+ * @param[in] p_context     Pointer to the NUS client structure.
  */
-void ble_nus_c_on_ble_evt(ble_nus_c_t * p_ble_nus_c, const ble_evt_t * p_ble_evt);
+void ble_nus_c_on_ble_evt(ble_evt_t const * p_ble_evt, void * p_context);
 
-/**@brief   Function for requesting the peer to start sending notification of RX characteristic.
+
+/**@brief   Function for requesting the peer to start sending notification of TX characteristic.
  *
- * @details This function enables notifications of the NUS RX characteristic at the peer
- *          by writing to the CCCD of the NUS RX characteristic.
+ * @details This function enables notifications of the NUS TX characteristic at the peer
+ *          by writing to the CCCD of the NUS TX characteristic.
  *
  * @param   p_ble_nus_c Pointer to the NUS client structure.
  *
@@ -187,11 +225,12 @@ void ble_nus_c_on_ble_evt(ble_nus_c_t * p_ble_nus_c, const ble_evt_t * p_ble_evt
  *                      Otherwise, an error code is returned. This function propagates the error
  *                      code returned by the SoftDevice API @ref sd_ble_gattc_write.
  */
-uint32_t ble_nus_c_rx_notif_enable(ble_nus_c_t * p_ble_nus_c);
+uint32_t ble_nus_c_tx_notif_enable(ble_nus_c_t * p_ble_nus_c);
+
 
 /**@brief Function for sending a string to the server.
  *
- * @details This function writes the TX characteristic of the server.
+ * @details This function writes the RX characteristic of the server.
  *
  * @param[in] p_ble_nus_c Pointer to the NUS client structure.
  * @param[in] p_string    String to be sent.
@@ -219,8 +258,9 @@ uint32_t ble_nus_c_string_send(ble_nus_c_t * p_ble_nus_c, uint8_t * p_string, ui
  * @retval    NRF_SUCCESS    If the operation was successful.
  * @retval    NRF_ERROR_NULL If a p_nus was a NULL pointer.
  */
-uint32_t ble_nus_c_handles_assign(ble_nus_c_t * p_ble_nus_c, const uint16_t conn_handle, const ble_nus_c_handles_t * p_peer_handles);
-
+uint32_t ble_nus_c_handles_assign(ble_nus_c_t *               p_ble_nus_c,
+                                  uint16_t                    conn_handle,
+                                  ble_nus_c_handles_t const * p_peer_handles);
 
 
 #ifdef __cplusplus

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2013 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2013 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  *
  * @defgroup ble_sdk_srv_sc_ctrlpt Speed and Cadence Control Point
@@ -213,8 +212,8 @@ struct ble_sc_ctrlpt_s
  *
  * @return      NRF_SUCCESS on successful initialization of service, otherwise an error code.
  */
-uint32_t ble_sc_ctrlpt_init(ble_sc_ctrlpt_t *            p_sc_ctrlpt,
-                            const ble_cs_ctrlpt_init_t * p_sc_ctrlpt_init);
+uint32_t ble_sc_ctrlpt_init(ble_sc_ctrlpt_t            * p_sc_ctrlpt,
+                            ble_cs_ctrlpt_init_t const * p_sc_ctrlpt_init);
 
 
 /**@brief Function for sending a control point response.
@@ -235,7 +234,7 @@ uint32_t ble_sc_ctrlpt_rsp_send(ble_sc_ctrlpt_t * p_sc_ctrlpt, ble_scpt_response
  * @param[in]   p_sc_ctrlpt   Speed and Cadence Control Point structure.
  * @param[in]   p_ble_evt  Event received from the BLE stack.
  */
-void ble_sc_ctrlpt_on_ble_evt(ble_sc_ctrlpt_t * p_sc_ctrlpt, ble_evt_t * p_ble_evt);
+void ble_sc_ctrlpt_on_ble_evt(ble_sc_ctrlpt_t * p_sc_ctrlpt, ble_evt_t const * p_ble_evt);
 
 
 

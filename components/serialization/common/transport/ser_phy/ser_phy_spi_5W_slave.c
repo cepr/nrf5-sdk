@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /**@file
  *
  * @defgroup ser_phy_spi_5W_phy_driver_slave ser_phy_nrf51_spi_5W_slave.c
@@ -57,7 +56,6 @@
 #include "ser_phy.h"
 #include "ser_config.h"
 #include "nrf_gpio.h"
-#include "nrf_delay.h"
 #include "nrf_gpiote.h"
 #include "nrf_soc.h"
 #include "app_error.h"
@@ -505,13 +503,13 @@ static void spi_slave_gpio_init(void)
 /* ser_phy API function */
 void ser_phy_interrupts_enable(void)
 {
-    NVIC_EnableIRQ(m_spis.irq);
+    NVIC_EnableIRQ(nrfx_get_irq_number(m_spis.p_reg));
 }
 
 /* ser_phy API function */
 void ser_phy_interrupts_disable(void)
 {
-    NVIC_DisableIRQ(m_spis.irq);
+    NVIC_DisableIRQ(nrfx_get_irq_number(m_spis.p_reg));
 }
 
 /* ser_phy API function */

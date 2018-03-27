@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #ifndef ESCS_DEFS_H__
 #define ESCS_DEFS_H__
 
@@ -63,7 +62,7 @@
 #define ESCS_URL_MIN_WRITE_LENGTH       (4)
 #define ESCS_URL_WRITE_LENGTH           (19)
 
-#ifdef NRF52
+#ifdef NRF52_SERIES
 #define ESCS_NUM_OF_SUPPORTED_TX_POWER  (9)
 /**@brief TX power levels, based on nRF52 specifications. */
 #define ESCS_SUPPORTED_TX_POWER         {-40, -20, -16, -12,  -8,  -4,  0,  3,  4}

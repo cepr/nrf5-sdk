@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2012 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  *
  * @defgroup ble_dis Device Information Service
@@ -47,7 +46,7 @@
  *
  * @details This module implements the Device Information Service.
  *          During initialization it adds the Device Information Service to the BLE stack database.
- *          It then encodes the supplied information, and adds the curresponding characteristics.
+ *          It then encodes the supplied information, and adds the corresponding characteristics.
  *
  * @note Attention!
  *  To maintain compliance with Nordic Semiconductor ASA Bluetooth profile
@@ -123,7 +122,7 @@ typedef struct
  *
  * @return      NRF_SUCCESS on successful initialization of service.
  */
-uint32_t ble_dis_init(const ble_dis_init_t * p_dis_init);
+uint32_t ble_dis_init(ble_dis_init_t const * p_dis_init);
 
 
 #ifdef __cplusplus

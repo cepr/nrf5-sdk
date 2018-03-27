@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,8 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
-
 #ifndef BUFFER_H__
 #define BUFFER_H__
 
@@ -75,7 +73,7 @@ extern "C" {
 do                                                                        \
 {                                                                         \
     __ALIGN(4) static uint8_t buffer_memory[(n_blocks) * (block_size)];   \
-    __ALIGN(4) static uint8_t mutex_memory[MUTEX_STORAGE_SIZE(n_blocks)]; \
+               static uint8_t mutex_memory[MUTEX_STORAGE_SIZE(n_blocks)]; \
     err_code = pm_buffer_init((p_buffer),                                 \
                                buffer_memory,                             \
                               (n_blocks) * (block_size),                  \

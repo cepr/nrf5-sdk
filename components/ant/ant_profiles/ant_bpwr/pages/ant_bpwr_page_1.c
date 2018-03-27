@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,14 +37,13 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #include "sdk_common.h"
 #if NRF_MODULE_ENABLED(ANT_BPWR)
 
 #include <string.h>
 #include "ant_bpwr_page_1.h"
 
-#define NRF_LOG_MODULE_NAME "ANT_BPWR_PAGE_1"
+#define NRF_LOG_MODULE_NAME ant_bpwr_page_1
 #if ANT_BPWR_PAGE_1_LOG_ENABLED
 #define NRF_LOG_LEVEL       ANT_BPWR_PAGE_1_LOG_LEVEL
 #define NRF_LOG_INFO_COLOR  ANT_BPWR_PAGE_1_INFO_COLOR
@@ -52,6 +51,7 @@
 #define NRF_LOG_LEVEL       0
 #endif // ANT_BPWR_PAGE_1_LOG_ENABLED
 #include "nrf_log.h"
+NRF_LOG_MODULE_REGISTER();
 
 /**@brief bicycle power page 1 data layout structure. */
 typedef struct
@@ -91,7 +91,7 @@ typedef struct
 
 static void page1_data_log(ant_bpwr_page1_data_t const * p_page_data)
 {
-    NRF_LOG_INFO("Calibration id:                      %u\r\n", p_page_data->calibration_id);
+    NRF_LOG_INFO("Calibration id:                      %u", p_page_data->calibration_id);
 
     switch (p_page_data->calibration_id)
     {
@@ -102,7 +102,7 @@ static void page1_data_log(ant_bpwr_page1_data_t const * p_page_data)
         case ANT_BPWR_CALIB_ID_MANUAL_SUCCESS:
         /* fall through */
         case ANT_BPWR_CALIB_ID_FAILED:
-            NRF_LOG_INFO("General calibration data:            %u\r\n",
+            NRF_LOG_INFO("General calibration data:            %u",
                          p_page_data->data.general_calib);
         /* fall through */
         case ANT_BPWR_CALIB_ID_AUTO:
@@ -183,7 +183,7 @@ void ant_bpwr_page_1_encode(uint8_t                     * p_page_buffer,
             break;
 
         case ANT_BPWR_CALIB_ID_CTF:
-            NRF_LOG_INFO("Not supported\r\n");
+            NRF_LOG_INFO("Not supported");
             break;
 
         case ANT_BPWR_CALIB_ID_AUTO_SUPPORT:
@@ -245,7 +245,7 @@ void ant_bpwr_page_1_decode(uint8_t const         * p_page_buffer,
             break;
 
         case ANT_BPWR_CALIB_ID_CTF:
-            NRF_LOG_INFO("Not supported\r\n");
+            NRF_LOG_INFO("Not supported");
             break;
 
         case ANT_BPWR_CALIB_ID_AUTO_SUPPORT:

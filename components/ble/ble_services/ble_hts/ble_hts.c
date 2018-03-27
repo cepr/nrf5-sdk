@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2012 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,22 +37,21 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /* Attention!
-*  To maintain compliance with Nordic Semiconductor ASA’s Bluetooth profile
-*  qualification listings, this section of source code must not be modified.
-*/
+ * To maintain compliance with Nordic Semiconductor ASA's Bluetooth profile
+ * qualification listings, this section of source code must not be modified.
+ */
 #include "sdk_common.h"
 #if NRF_MODULE_ENABLED(BLE_HTS)
+#include "ble_err.h"
 #include "ble_hts.h"
 #include <string.h>
-#include "ble_l2cap.h"
 #include "ble_srv_common.h"
 
 
-#define OPCODE_LENGTH 1                                                    /**< Length of opcode inside Health Thermometer Measurement packet. */
-#define HANDLE_LENGTH 2                                                    /**< Length of handle inside Health Thermometer Measurement packet. */
-#define MAX_HTM_LEN   (BLE_L2CAP_MTU_DEF - OPCODE_LENGTH - HANDLE_LENGTH)  /**< Maximum size of a transmitted Health Thermometer Measurement. */
+#define OPCODE_LENGTH 1                                                           /**< Length of opcode inside Health Thermometer Measurement packet. */
+#define HANDLE_LENGTH 2                                                           /**< Length of handle inside Health Thermometer Measurement packet. */
+#define MAX_HTM_LEN   (BLE_GATT_ATT_MTU_DEFAULT - OPCODE_LENGTH - HANDLE_LENGTH)  /**< Maximum size of a transmitted Health Thermometer Measurement. */
 
 // Health Thermometer Measurement flag bits
 #define HTS_MEAS_FLAG_TEMP_UNITS_BIT (0x01 << 0)  /**< Temperature Units flag. */
@@ -65,7 +64,7 @@
  * @param[in]   p_hts       Health Thermometer Service structure.
  * @param[in]   p_ble_evt   Event received from the BLE stack.
  */
-static void on_connect(ble_hts_t * p_hts, ble_evt_t * p_ble_evt)
+static void on_connect(ble_hts_t * p_hts, ble_evt_t const * p_ble_evt)
 {
     p_hts->conn_handle = p_ble_evt->evt.gatts_evt.conn_handle;
 }
@@ -76,7 +75,7 @@ static void on_connect(ble_hts_t * p_hts, ble_evt_t * p_ble_evt)
  * @param[in]   p_hts       Health Thermometer Service structure.
  * @param[in]   p_ble_evt   Event received from the BLE stack.
  */
-static void on_disconnect(ble_hts_t * p_hts, ble_evt_t * p_ble_evt)
+static void on_disconnect(ble_hts_t * p_hts, ble_evt_t const * p_ble_evt)
 {
     UNUSED_PARAMETER(p_ble_evt);
     p_hts->conn_handle = BLE_CONN_HANDLE_INVALID;
@@ -88,7 +87,7 @@ static void on_disconnect(ble_hts_t * p_hts, ble_evt_t * p_ble_evt)
  * @param[in]   p_hts         Health Thermometer Service structure.
  * @param[in]   p_evt_write   Write event received from the BLE stack.
  */
-static void on_cccd_write(ble_hts_t * p_hts, ble_gatts_evt_write_t * p_evt_write)
+static void on_cccd_write(ble_hts_t * p_hts, ble_gatts_evt_write_t const * p_evt_write)
 {
     if (p_evt_write->len == 2)
     {
@@ -117,9 +116,9 @@ static void on_cccd_write(ble_hts_t * p_hts, ble_gatts_evt_write_t * p_evt_write
  * @param[in]   p_hts       Health Thermometer Service structure.
  * @param[in]   p_ble_evt   Event received from the BLE stack.
  */
-static void on_write(ble_hts_t * p_hts, ble_evt_t * p_ble_evt)
+static void on_write(ble_hts_t * p_hts, ble_evt_t const * p_ble_evt)
 {
-    ble_gatts_evt_write_t * p_evt_write = &p_ble_evt->evt.gatts_evt.params.write;
+    ble_gatts_evt_write_t const * p_evt_write = &p_ble_evt->evt.gatts_evt.params.write;
 
     if (p_evt_write->handle == p_hts->meas_handles.cccd_handle)
     {
@@ -135,9 +134,9 @@ static void on_write(ble_hts_t * p_hts, ble_evt_t * p_ble_evt)
  * @param[in]   p_hts       Health Thermometer Service structure.
  * @param[in]   p_ble_evt   Event received from the BLE stack.
  */
-static void on_hvc(ble_hts_t * p_hts, ble_evt_t * p_ble_evt)
+static void on_hvc(ble_hts_t * p_hts, ble_evt_t const * p_ble_evt)
 {
-    ble_gatts_evt_hvc_t * p_hvc = &p_ble_evt->evt.gatts_evt.params.hvc;
+    ble_gatts_evt_hvc_t const * p_hvc = &p_ble_evt->evt.gatts_evt.params.hvc;
 
     if (p_hvc->handle == p_hts->meas_handles.value_handle)
     {
@@ -149,8 +148,10 @@ static void on_hvc(ble_hts_t * p_hts, ble_evt_t * p_ble_evt)
 }
 
 
-void ble_hts_on_ble_evt(ble_hts_t * p_hts, ble_evt_t * p_ble_evt)
+void ble_hts_on_ble_evt(ble_evt_t const * p_ble_evt, void * p_context)
 {
+    ble_hts_t * p_hts = (ble_hts_t *)p_context;
+
     switch (p_ble_evt->header.evt_id)
     {
         case BLE_GAP_EVT_CONNECTED:
@@ -245,7 +246,7 @@ static uint8_t hts_measurement_encode(ble_hts_t      * p_hts,
  *
  * @return      NRF_SUCCESS on success, otherwise an error code.
  */
-static uint32_t hts_measurement_char_add(ble_hts_t * p_hts, const ble_hts_init_t * p_hts_init)
+static uint32_t hts_measurement_char_add(ble_hts_t * p_hts, ble_hts_init_t const * p_hts_init)
 {
     ble_gatts_char_md_t char_md;
     ble_gatts_attr_md_t cccd_md;
@@ -305,7 +306,7 @@ static uint32_t hts_measurement_char_add(ble_hts_t * p_hts, const ble_hts_init_t
  *
  * @return      NRF_SUCCESS on success, otherwise an error code.
  */
-static uint32_t hts_temp_type_char_add(ble_hts_t * p_hts, const ble_hts_init_t * p_hts_init)
+static uint32_t hts_temp_type_char_add(ble_hts_t * p_hts, ble_hts_init_t const * p_hts_init)
 {
     ble_gatts_char_md_t char_md;
     ble_gatts_attr_t    attr_char_value;
@@ -353,7 +354,7 @@ static uint32_t hts_temp_type_char_add(ble_hts_t * p_hts, const ble_hts_init_t *
 }
 
 
-uint32_t ble_hts_init(ble_hts_t * p_hts, const ble_hts_init_t * p_hts_init)
+uint32_t ble_hts_init(ble_hts_t * p_hts, ble_hts_init_t const * p_hts_init)
 {
     uint32_t   err_code;
     ble_uuid_t ble_uuid;

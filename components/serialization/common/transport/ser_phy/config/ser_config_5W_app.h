@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #ifndef SER_CONFIG_5W_APP_H__
 #define SER_CONFIG_5W_APP_H__
 
@@ -50,4 +49,4 @@ extern "C" {
 }
 #endif
 
-#endif /* SER_CONFIG_APP_H__ */
+#endif // SER_CONFIG_5W_APP_H__

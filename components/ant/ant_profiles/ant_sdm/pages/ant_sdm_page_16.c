@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,22 +37,20 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #include "sdk_common.h"
 #if NRF_MODULE_ENABLED(ANT_SDM)
 
 #include "ant_sdm_page_16.h"
 #include "ant_sdm_utils.h"
 
-#define NRF_LOG_MODULE_NAME "ANT_SDM_PAGE_16"
-#if ANT_SDM_PAGE_16_LOG_ENABLED
-#define NRF_LOG_LEVEL       ANT_SDM_PAGE_16_LOG_LEVEL
-#define NRF_LOG_INFO_COLOR  ANT_SDM_PAGE_16_INFO_COLOR
-#else // ANT_SDM_PAGE_16_LOG_ENABLED
+#define NRF_LOG_MODULE_NAME ant_sdm
+#if ANT_SDM_LOG_ENABLED
+#define NRF_LOG_LEVEL       ANT_SDM_LOG_LEVEL
+#define NRF_LOG_INFO_COLOR  ANT_SDM_INFO_COLOR
+#else // ANT_SDM_LOG_ENABLED
 #define NRF_LOG_LEVEL       0
-#endif // ANT_SDM_PAGE_16_LOG_ENABLED
+#endif // ANT_SDM_LOG_ENABLED
 #include "nrf_log.h"
-
 
 /**@brief SDM page 16 data layout structure. */
 typedef struct
@@ -71,7 +69,7 @@ static void page_16_data_log(ant_sdm_common_data_t const * p_common_data)
 {
     uint64_t distance = ANT_SDM_DISTANCE_RESCALE(p_common_data->distance);
 
-    NRF_LOG_INFO("Distance                             %u.%01u m\r\n",
+    NRF_LOG_INFO("Distance                             %u.%01u m",
                  (unsigned int)(distance / ANT_SDM_DISTANCE_DISP_PRECISION),
                  (unsigned int)(distance % ANT_SDM_DISTANCE_DISP_PRECISION));
     NRF_LOG_INFO("Strides                              %u\r\n\n",

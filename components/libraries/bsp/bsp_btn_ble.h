@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /**@file
  *
  * @defgroup bsp_btn_ble BSP: BLE Button Module
@@ -90,14 +89,6 @@ uint32_t bsp_btn_ble_init(bsp_btn_ble_error_handler_t error_handler, bsp_event_t
  *                      code is returned.
  */
 uint32_t bsp_btn_ble_sleep_mode_prepare(void);
-
-/**@brief Function for handling the application's BLE stack events.
- *
- * @details This function handles all events from the BLE stack that are of interest to this module.
- *
- * @param[in] p_ble_evt BLE stack event.
- */
-void bsp_btn_ble_on_ble_evt(ble_evt_t * p_ble_evt);
 
 
 #ifdef __cplusplus

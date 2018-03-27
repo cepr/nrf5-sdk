@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,15 +37,9 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
-
 #include "bsp_btn_ble.h"
-#include <stdint.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include "ble.h"
+#include "nrf_sdh_ble.h"
 #include "bsp.h"
-
 
 #define BTN_ID_WAKEUP             0  /**< ID of button used to wake up the application. */
 #define BTN_ID_SLEEP              0  /**< ID of button used to put the application into sleep mode. */
@@ -56,22 +50,6 @@
 #define BTN_ACTION_SLEEP          BSP_BUTTON_ACTION_RELEASE    /**< Button action used to put the application into sleep mode. */
 #define BTN_ACTION_DISCONNECT     BSP_BUTTON_ACTION_LONG_PUSH  /**< Button action used to gracefully terminate a connection on long press. */
 #define BTN_ACTION_WHITELIST_OFF  BSP_BUTTON_ACTION_LONG_PUSH  /**< Button action used to turn off usage of the whitelist. */
-
-
-
-/**@brief This macro will return from the current function if err_code
- *        is not NRF_SUCCESS.
- */
-#define RETURN_ON_ERROR(err_code)  \
-do                                 \
-{                                  \
-    if ((err_code) != NRF_SUCCESS) \
-    {                              \
-        return err_code;           \
-    }                              \
-}                                  \
-while (0)
-
 
 /**@brief This macro will return from the current function if err_code
  *        is not NRF_SUCCESS or NRF_ERROR_INVALID_PARAM.
@@ -138,6 +116,7 @@ static uint32_t connection_buttons_configure()
                                                  BSP_EVENT_WHITELIST_OFF);
     RETURN_ON_ERROR_NOT_INVALID_PARAM(err_code);
 
+
     err_code = bsp_event_to_button_action_assign(BTN_ID_DISCONNECT,
                                                  BTN_ACTION_DISCONNECT,
                                                  BSP_EVENT_DISCONNECT);
@@ -203,17 +182,25 @@ static void startup_event_extract(bsp_event_t * p_startup_event)
 
 uint32_t bsp_btn_ble_sleep_mode_prepare(void)
 {
-    uint32_t err_code = bsp_wakeup_button_enable(BTN_ID_WAKEUP); 
+    uint32_t err_code;
+
+    err_code = bsp_wakeup_button_enable(BTN_ID_WAKEUP);
     RETURN_ON_ERROR_NOT_NOT_SUPPORTED(err_code);
 
-    err_code = bsp_wakeup_button_enable(BTN_ID_WAKEUP_BOND_DELETE); 
+    err_code = bsp_wakeup_button_enable(BTN_ID_WAKEUP_BOND_DELETE);
     RETURN_ON_ERROR_NOT_NOT_SUPPORTED(err_code);
-    
+
     return NRF_SUCCESS;
 }
 
 
-void bsp_btn_ble_on_ble_evt(ble_evt_t * p_ble_evt)
+/**
+ * @brief Function for handling BLE events.
+ *
+ * @param[in]   p_ble_evt       Event received from the BLE stack.
+ * @param[in]   p_context       Context.
+ */
+static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
 {
     uint32_t err_code;
 
@@ -243,6 +230,8 @@ void bsp_btn_ble_on_ble_evt(ble_evt_t * p_ble_evt)
             break;
     }
 }
+
+NRF_SDH_BLE_OBSERVER(m_ble_observer, BSP_BTN_BLE_OBSERVER_PRIO, ble_evt_handler, NULL);
 
 
 uint32_t bsp_btn_ble_init(bsp_btn_ble_error_handler_t error_handler, bsp_event_t * p_startup_bsp_evt)

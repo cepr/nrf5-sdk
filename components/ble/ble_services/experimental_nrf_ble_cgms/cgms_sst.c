@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
@@ -84,10 +83,10 @@ void calc_sst(uint16_t offset, struct tm * p_c_time_date)
     c_time_in_sec  = mktime(p_c_time_date);
     c_time_in_sec  = c_time_in_sec - (offset * 60);
     *p_c_time_date = *(localtime(&c_time_in_sec));
-    
-    if(p_c_time_date->tm_isdst == 1)
+
+    if (p_c_time_date->tm_isdst == 1)
     {
-        // Daylight saving time is not used and must be removed. 
+        // Daylight saving time is not used and must be removed.
         p_c_time_date->tm_hour = p_c_time_date->tm_hour - 1;
         p_c_time_date->tm_isdst = 0;
     }
@@ -193,6 +192,7 @@ ret_code_t cgms_sst_char_add(nrf_ble_cgms_t * p_cgms)
     add_char_params.write_access     = SEC_JUST_WORKS;
     add_char_params.is_defered_write = 1;
     add_char_params.char_props.write = true;
+    add_char_params.char_props.read  = true;
 
     return characteristic_add(p_cgms->service_handle,
                               &add_char_params,

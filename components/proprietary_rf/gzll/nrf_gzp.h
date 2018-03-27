@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2012 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2012 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /**
  * @file
  * @brief Gazell Pairing API
@@ -56,10 +55,10 @@ extern "C" {
 
 
 /**
-* @defgroup gzp_02_api Application Programming Interface (API)
+* @defgroup gzp_02_api Gazell Pairing
 * @{
 * @ingroup modules_02_gzp
-* @brief Gazell Pairing API.
+* @brief Gazell Pairing Application Programming Interface (API).
 */
 
 

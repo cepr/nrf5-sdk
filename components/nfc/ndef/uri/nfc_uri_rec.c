@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,20 +37,14 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
+#include "sdk_common.h"
+#if NRF_MODULE_ENABLED(NFC_NDEF_URI_REC)
 
 #include <string.h>
 #include "nfc_uri_rec.h"
 #include "nrf_error.h"
 
-/**
- * @brief Type of description of the payload of a URI record.
- */
-typedef struct
-{
-    nfc_uri_id_t    uri_id_code;  ///< URI identifier code.
-    uint8_t const * p_uri_data;   ///< Pointer to a URI string.
-    uint8_t         uri_data_len; ///< Length of the URI string.
-} uri_payload_desc_t;
+const uint8_t ndef_uri_record_type = 'U'; ///< URI Record type.
 
 /**
  * @brief Function for constructing the payload for a URI record.
@@ -68,9 +62,9 @@ typedef struct
  * @retval NRF_SUCCESS          If the payload was encoded successfully.
  * @retval NRF_ERROR_NO_MEM     If the predicted payload size is bigger than the provided buffer space.
  */
-static ret_code_t nfc_uri_payload_constructor( uri_payload_desc_t * p_input,
-                                               uint8_t * p_buff,
-                                               uint32_t * p_len)
+ret_code_t nfc_uri_payload_constructor( uri_payload_desc_t * p_input,
+                                        uint8_t * p_buff,
+                                        uint32_t * p_len)
 {
     if (p_buff != NULL)
     {
@@ -90,26 +84,4 @@ static ret_code_t nfc_uri_payload_constructor( uri_payload_desc_t * p_input,
     return NRF_SUCCESS;
 }
 
-nfc_ndef_record_desc_t * nfc_uri_rec_declare( nfc_uri_id_t           uri_id_code,
-                                              uint8_t const *  const p_uri_data,
-                                              uint8_t                uri_data_len)
-{
-    static uri_payload_desc_t uri_payload_desc;
-    static const uint8_t static_uri_type = 'U';
-
-    NFC_NDEF_GENERIC_RECORD_DESC_DEF( uri_rec,
-                                      TNF_WELL_KNOWN, // tnf <- well-known
-                                      NULL,
-                                      0,    // no id
-                                      &static_uri_type,
-                                      1, // type size 1B
-                                      nfc_uri_payload_constructor,
-                                      &uri_payload_desc);
-
-   uri_payload_desc.uri_id_code  = uri_id_code;
-   uri_payload_desc.p_uri_data   = p_uri_data;
-   uri_payload_desc.uri_data_len = uri_data_len;
-
-   return &NFC_NDEF_GENERIC_RECORD_DESC( uri_rec);
-}
-
+#endif // NRF_MODULE_ENABLED(NFC_NDEF_URI_REC)

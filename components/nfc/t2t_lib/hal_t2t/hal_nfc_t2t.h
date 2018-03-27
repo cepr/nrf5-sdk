@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -56,6 +56,9 @@
 #include <string.h>
 #include <sdk_errors.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @brief Events passed to the upper-layer callback function. */
 typedef enum {
@@ -69,6 +72,10 @@ typedef enum {
 /** @brief Parameter IDs for set/get function. */
 typedef enum {
     HAL_NFC_PARAM_ID_TESTING,         ///<  Used for unit tests.
+    HAL_NFC_PARAM_ID_NFCID1,          /**<  NFCID1 value, data can be 4, 7, or 10 bytes long (single, double, or triple size).
+                                            To use default NFCID1 of specific length pass one byte containing requested length.
+                                            Default 7-byte NFCID1 will be used if this parameter was not set. This parameter can be
+                                            set before nfc_t2t_setup() to set initial NFCID1 and it can be changed later. */
     HAL_NFC_PARAM_ID_UNKNOWN
 } hal_nfc_param_id_t;
 
@@ -157,7 +164,9 @@ ret_code_t hal_nfc_start(void);
   * valid until the HAL_NFC_EVENT_DATA_TRANSMITTED event is received by the
   * callback.
   *
-  * @param[in] p_data       The data packet to send.
+  * @note Provided pointer must point to RAM region.
+  *
+  * @param[in] p_data       Pointer to the memory area in RAM containing data packet to send.
   * @param[in] data_length  Size of the packet in bytes.
   *
   * @retval NRF_SUCCESS If the packet was sent. Otherwise, an error code is returned.
@@ -184,6 +193,10 @@ ret_code_t hal_nfc_stop(void);
   * @retval NRF_SUCCESS This function always succeeds.
   */
 ret_code_t hal_nfc_done(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 /** @} */
 #endif /* HAL_NFC_H__ */

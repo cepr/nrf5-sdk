@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2014 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
 * @defgroup temperature_example_main main.c
 * @{
@@ -62,9 +61,10 @@
 #include "nrf_temp.h"
 #include "app_error.h"
 #include "bsp.h"
-#define NRF_LOG_MODULE_NAME "APP"
+
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 /** @brief Function for main application entry.
  */
 int main(void)
@@ -75,6 +75,8 @@ int main(void)
     nrf_temp_init();
 
     APP_ERROR_CHECK(NRF_LOG_INIT(NULL));
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
+    NRF_LOG_INFO("Temperature example started.");
 
     while (true)
     {
@@ -94,7 +96,7 @@ int main(void)
         /**@note Workaround for PAN_028 rev2.0A anomaly 30 - TEMP: Temp module analog front end does not power down when DATARDY event occurs. */
         NRF_TEMP->TASKS_STOP = 1; /** Stop the temperature measurement. */
 
-        NRF_LOG_INFO("Actual temperature: %d\r\n", (int)temp);
+        NRF_LOG_INFO("Actual temperature: %d", (int)temp);
         nrf_delay_ms(500);
 
         NRF_LOG_FLUSH();

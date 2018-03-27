@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2015 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,17 +37,14 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
-#include "sdk_config.h"
-#if NFC_NDEF_MSG_ENABLED
+#include "sdk_common.h"
+#if NRF_MODULE_ENABLED(NFC_NDEF_MSG)
 
 #include "app_util.h"
 #include "nfc_ndef_msg.h"
 #include "nordic_common.h"
 #include "nrf.h"
 
-#define TYPE_4_TAG      4U ///< Type 4 Tag identifier.
-#define NLEN_FIELD_SIZE 2U ///< Size of NLEN field, used to encode NDEF message for Type 4 Tag.
 
 /**
  * @brief Resolve the value of record location flags of the NFC NDEF record within an NFC NDEF message.
@@ -183,4 +180,4 @@ ret_code_t nfc_ndef_msg_record_add(nfc_ndef_msg_desc_t * const    p_msg,
     return NRF_SUCCESS;
 }
 
-#endif // NFC_NDEF_MSG_ENABLED
+#endif // NRF_MODULE_ENABLED(NFC_NDEF_MSG)

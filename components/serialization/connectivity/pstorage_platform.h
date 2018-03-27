@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2013 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2013 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,8 +37,7 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
- /** @cond To make doxygen skip this file */
+/** @cond To make doxygen skip this file */
 
 /** @file
  *  This header contains defines regarding persistent storage that are specific to
@@ -92,9 +91,6 @@ typedef struct
 } pstorage_handle_t;
 
 typedef uint16_t pstorage_size_t;      /** Size of length and offset fields. */
-
-/**@brief Handles Flash Access Result Events. To be called in the system event dispatcher of the application. */
-void pstorage_sys_event_handler (uint32_t sys_evt);
 
 
 #ifdef __cplusplus

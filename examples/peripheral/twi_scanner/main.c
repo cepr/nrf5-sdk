@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2016 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2016 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -37,7 +37,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  * 
  */
-
 /** @file
  * @defgroup tw_scanner main.c
  * @{
@@ -54,13 +53,18 @@
 #include "app_error.h"
 #include "nrf_drv_twi.h"
 
-#define NRF_LOG_MODULE_NAME "APP"
+
 
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
+#include "nrf_log_default_backends.h"
 
 /* TWI instance ID. */
+#if TWI0_ENABLED
 #define TWI_INSTANCE_ID     0
+#elif TWI1_ENABLED
+#define TWI_INSTANCE_ID     1
+#endif
 
  /* Number of possible TWI addresses. */
  #define TWI_ADDRESSES      127
@@ -79,7 +83,7 @@ void twi_init (void)
     const nrf_drv_twi_config_t twi_config = {
        .scl                = ARDUINO_SCL_PIN,
        .sda                = ARDUINO_SDA_PIN,
-       .frequency          = NRF_TWI_FREQ_100K,
+       .frequency          = NRF_DRV_TWI_FREQ_100K,
        .interrupt_priority = APP_IRQ_PRIORITY_HIGH,
        .clear_bus_init     = false
     };
@@ -102,7 +106,9 @@ int main(void)
     bool detected_device = false;
 
     APP_ERROR_CHECK(NRF_LOG_INIT(NULL));
-    NRF_LOG_INFO("TWI scanner.\r\n");
+    NRF_LOG_DEFAULT_BACKENDS_INIT();
+
+    NRF_LOG_INFO("TWI scanner started.");
     NRF_LOG_FLUSH();
     twi_init();
 
@@ -112,14 +118,14 @@ int main(void)
         if (err_code == NRF_SUCCESS)
         {
             detected_device = true;
-            NRF_LOG_INFO("TWI device detected at address 0x%x.\r\n", address);
+            NRF_LOG_INFO("TWI device detected at address 0x%x.", address);
         }
         NRF_LOG_FLUSH();
     }
 
     if (!detected_device)
     {
-        NRF_LOG_INFO("No device was found.\r\n");
+        NRF_LOG_INFO("No device was found.");
         NRF_LOG_FLUSH();
     }
 
