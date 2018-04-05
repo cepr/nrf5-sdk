@@ -43,28 +43,19 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define NRF_PERIPHERALS_H__
 
 /*lint ++flb "Enter library region */
-
-#if defined(_WIN32)
-    /* Do not include nrf specific files when building for PC host */
-#elif defined(__unix)
-    /* Do not include nrf specific files when building for PC host */
-#elif defined(__APPLE__)
-    /* Do not include nrf specific files when building for PC host */
-#else
     
-    #if defined(NRF51)
-        #include "nrf51_peripherals.h"
-        
-    #elif defined(NRF52810_XXAA)
-        #include "nrf52810_peripherals.h"
-    #elif defined(NRF52832_XXAA) || defined(NRF52832_XXAB)
-        #include "nrf52832_peripherals.h"
-    #elif defined(NRF52840_XXAA)
-        #include "nrf52840_peripherals.h"
-        
-    #else
-        #error "Device must be defined. See nrf.h."
-    #endif
+#if defined(NRF51)
+    #include "nrf51_peripherals.h"
+
+#elif defined(NRF52810_XXAA)
+    #include "nrf52810_peripherals.h"
+#elif defined(NRF52832_XXAA) || defined(NRF52832_XXAB)
+    #include "nrf52832_peripherals.h"
+#elif defined(NRF52840_XXAA)
+    #include "nrf52840_peripherals.h"
+
+#else
+    #error "Device must be defined. See nrf.h."
 #endif
 
 /*lint --flb "Leave library region" */

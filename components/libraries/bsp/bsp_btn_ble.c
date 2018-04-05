@@ -41,6 +41,8 @@
 #include "nrf_sdh_ble.h"
 #include "bsp.h"
 
+#if BUTTONS_NUMBER > 0
+
 #define BTN_ID_WAKEUP             0  /**< ID of button used to wake up the application. */
 #define BTN_ID_SLEEP              0  /**< ID of button used to put the application into sleep mode. */
 #define BTN_ID_DISCONNECT         0  /**< ID of button used to gracefully terminate a connection on long press. */
@@ -179,7 +181,6 @@ static void startup_event_extract(bsp_event_t * p_startup_event)
     }
 }
 
-
 uint32_t bsp_btn_ble_sleep_mode_prepare(void)
 {
     uint32_t err_code;
@@ -252,3 +253,18 @@ uint32_t bsp_btn_ble_init(bsp_btn_ble_error_handler_t error_handler, bsp_event_t
 
     return err_code;
 }
+
+#else
+
+uint32_t bsp_btn_ble_sleep_mode_prepare(void)
+{
+    return NRF_SUCCESS;
+}
+
+uint32_t bsp_btn_ble_init(bsp_btn_ble_error_handler_t error_handler, bsp_event_t * p_startup_bsp_evt)
+{
+    return NRF_SUCCESS;
+}
+
+#endif /* BUTTONS_NUMBER > 0 */
+

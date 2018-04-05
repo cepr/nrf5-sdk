@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# JLinkGDBServer -if SWD -halt -device cortex-m4
+
+/opt/arm/gcc-arm-none-eabi-6-2017-q2-update/bin/arm-none-eabi-gdb \
+ --se=`dirname $0`/_build/nrf52832_xxaa.out \
+ -iex 'target remote localhost:2331' \
+ -iex 'monitor reset' \
+ "$@"

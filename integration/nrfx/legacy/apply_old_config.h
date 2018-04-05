@@ -76,7 +76,7 @@
 //------------------------------------------------------------------------------
 // CLOCK
 
-#if defined(CLOCK_ENABLED)
+#if CLOCK_ENABLED
 
 #undef NRFX_CLOCK_ENABLED
 #define NRFX_CLOCK_ENABLED  CLOCK_ENABLED
@@ -1272,7 +1272,7 @@
 //------------------------------------------------------------------------------
 // UART
 
-#if defined(UART_ENABLED)
+#if UART_ENABLED
 
 #undef NRFX_UART_ENABLED
 #define NRFX_UART_ENABLED   (UART_ENABLED && NRFX_UART0_ENABLED)
