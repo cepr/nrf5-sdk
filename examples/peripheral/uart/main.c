@@ -3,6 +3,7 @@
 //#include "bsp.h"
 #include "nrf_gpio.h"
 #include "nrfx_clock.h"
+#include "app_timer.h"
 
 #include "LINDrivers/lin_app.h"
 
@@ -28,11 +29,23 @@
 
 #define MCP2050_CS_LWAKE_PIN 29
 
+#define BLINKER_TOGGLE_MS (90*1000/60/2) // 90 flashes per minutes as specified by SAE J590b
+APP_TIMER_DEF(blinker_timer_id);
+static void blinker_timer(void* p_context) {
+    BLINKER_Data[0] ^= 1;
+}
+
+static void clock_event_handler(nrfx_clock_evt_type_t event)
+{
+}
+
 /**
  * @brief Function for main application entry.
  */
 int main(void)
 {
+    APP_ERROR_CHECK(nrfx_clock_init(clock_event_handler));
+    nrfx_clock_enable();
     nrfx_clock_lfclk_start();
 
     // Configure GPIO
@@ -49,11 +62,25 @@ int main(void)
     nrf_gpio_cfg_output(MCP2050_CS_LWAKE_PIN);
     nrf_gpio_pin_write(MCP2050_CS_LWAKE_PIN, 1);
 
+    // Initialize the timer subsystem
+    APP_ERROR_CHECK(app_timer_init());
+
     lin_app_initialize();
+
+    APP_ERROR_CHECK(app_timer_create(
+               &blinker_timer_id,
+               APP_TIMER_MODE_REPEATED,
+               blinker_timer));
+    APP_ERROR_CHECK(app_timer_start(
+               blinker_timer_id,
+               APP_TIMER_TICKS(BLINKER_TOGGLE_MS),
+               NULL));
 
     while (true)
     {
+#if 1
         static bool engine_started = false;
+
         if (!nrf_gpio_pin_read(IGNITION_STARTER_POS_1_PIN)) {
             IGNITION_STARTER_Data[0] |= 1;
         } else {
@@ -82,15 +109,15 @@ int main(void)
         }
 
         if (!nrf_gpio_pin_read(TURN_SIGNAL_LEFT_PIN)) {
-            BLINKER_Data[0] |= 1;
+            TURN_SIGNAL_Data[0] |= 1;
         } else {
-            BLINKER_Data[0] &= ~1;
+            TURN_SIGNAL_Data[0] &= ~1;
         }
 
         if (!nrf_gpio_pin_read(TURN_SIGNAL_RIGHT_PIN)) {
-            BLINKER_Data[0] |= 2;
+            TURN_SIGNAL_Data[0] |= 2;
         } else {
-            BLINKER_Data[0] &= ~2;
+            TURN_SIGNAL_Data[0] &= ~2;
         }
 
         static uint32_t headlight_dimmer_previous_state = 1;
@@ -105,8 +132,13 @@ int main(void)
         } else {
             HORN_Data[0] = 0;
         }
-
-        // TODO update blinker
+#else
+        IGNITION_STARTER_Data[0] = 2;
+        WIPERS_Data[0] = 2;
+        TURN_SIGNAL_Data[0] = 3;
+        LIGHTS_Data[0] |= 1;
+        HORN_Data[0] = 1;
+#endif
     }
 }
 

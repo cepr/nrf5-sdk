@@ -96,7 +96,7 @@ static const lin_cmd_packet_t scheduleTable[] = {
 
 #define TABLE_SIZE (sizeof(scheduleTable)/sizeof(lin_cmd_packet_t))
 
-#define PERIOD_MS 10
+#define PERIOD_MS 5
 
 void lin_app_initialize(void){
     lin_master_init(TABLE_SIZE, scheduleTable, PERIOD_MS);

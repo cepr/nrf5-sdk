@@ -13,6 +13,7 @@ static nrfx_uart_t uart_driver_instance = NRFX_UART_INSTANCE(0);
 static uint8_t rx_buffer[1];
 static void (*user_callback)(uint8_t);
 static void (*tx_complete)(void);
+static uint32_t current_baudrate = 0;
 
 static void uart_event_handler(nrfx_uart_event_t const *p_event, void *p_context)
 {
@@ -29,10 +30,8 @@ static void uart_event_handler(nrfx_uart_event_t const *p_event, void *p_context
     }
 }
 
-void lin_hardware_uart_init(uint32_t baudrate, void (*on_receive_callback)(uint8_t))
+void lin_hardware_uart_init(uint32_t baudrate)
 {
-    user_callback = on_receive_callback;
-
     nrf_uart_baudrate_t nrf_baudrate;
     if (baudrate == 9600) {
         nrf_baudrate = NRF_UART_BAUDRATE_9600;
@@ -55,11 +54,19 @@ void lin_hardware_uart_init(uint32_t baudrate, void (*on_receive_callback)(uint8
     };
 
     APP_ERROR_CHECK(nrfx_uart_init(&uart_driver_instance, &config, uart_event_handler));
+
+    lin_hardware_uart_disable_rx();
+
+    current_baudrate = baudrate;
 }
 
-void lin_hardware_uart_uninit(void)
+void lin_hardware_uart_set_baudrate(uint32_t baudrate)
 {
-    nrfx_uart_uninit(&uart_driver_instance);
+    if (baudrate != current_baudrate) {
+        // Reconfigure UART
+        nrfx_uart_uninit(&uart_driver_instance);
+        lin_hardware_uart_init(baudrate);
+    }
 }
 
 void lin_hardware_uart_write(const uint8_t *data, size_t length, void (*_tx_complete)(void))
@@ -68,8 +75,10 @@ void lin_hardware_uart_write(const uint8_t *data, size_t length, void (*_tx_comp
     APP_ERROR_CHECK(nrfx_uart_tx(&uart_driver_instance, data, length));
 }
 
-void lin_hardware_uart_enable_rx(void)
+void lin_hardware_uart_enable_rx(void (*on_receive_callback)(uint8_t))
 {
+    user_callback = on_receive_callback;
+
     nrfx_uart_rx_enable(&uart_driver_instance);
     // start reading
     nrfx_uart_rx(&uart_driver_instance, rx_buffer, 1);
@@ -77,6 +86,7 @@ void lin_hardware_uart_enable_rx(void)
 
 void lin_hardware_uart_disable_rx(void)
 {
+    user_callback = NULL;
     nrfx_uart_rx_disable(&uart_driver_instance);
 }
 
@@ -86,7 +96,7 @@ APP_TIMER_DEF(timer_id);
 
 void lin_hardware_timer_init(uint32_t millis, void (*callback)(void*))
 {
-    APP_ERROR_CHECK(app_timer_init());
+    //APP_ERROR_CHECK(app_timer_init());
     APP_ERROR_CHECK(app_timer_create(
                &timer_id,
                APP_TIMER_MODE_REPEATED,
