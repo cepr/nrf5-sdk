@@ -1,9 +1,10 @@
 
 #include "nrf.h"
-//#include "bsp.h"
 #include "nrf_gpio.h"
 #include "nrfx_clock.h"
 #include "app_timer.h"
+#include "nrf_delay.h"
+#include "button.h"
 
 #include "LINDrivers/lin_app.h"
 
@@ -39,24 +40,106 @@ static void clock_event_handler(nrfx_clock_evt_type_t event)
 {
 }
 
+#define DEBOUNCE_TICKS APP_TIMER_TICKS(20) // 20 ms debouncing
+
+static bool engine_started = false;
+
+static button_t ignition_starter_pos_1;
+static button_t ignition_starter_pos_2;
+static button_t windshield_wipers_slow;
+static button_t windshield_wipers_fast;
+static button_t turn_signal_left;
+static button_t turn_signal_right;
+static button_t headlight_dimmer;
+static button_t horn_button;
+
+static void turn_signal_left_pressed(void) {
+    if (button_is_released(ignition_starter_pos_1))
+        return;
+    TURN_SIGNAL_Data[0] |= 1;
+}
+
+static void turn_signal_left_released(void) {
+    TURN_SIGNAL_Data[0] &= ~1;
+}
+
+static void turn_signal_right_pressed(void) {
+    if (button_is_released(ignition_starter_pos_1))
+        return;
+    TURN_SIGNAL_Data[0] |= 2;
+}
+
+static void turn_signal_right_released(void) {
+    TURN_SIGNAL_Data[0] &= ~2;
+}
+
+static void wipers_changed(void) {
+    if (button_is_released(ignition_starter_pos_1))
+        return;
+    if (button_is_pressed(windshield_wipers_fast)) {
+        WIPERS_Data[0] = 2;
+    } else if (button_is_pressed(windshield_wipers_slow)) {
+        WIPERS_Data[0] = 1;
+    } else {
+        WIPERS_Data[0] = 0;
+    }
+}
+
+static void ignition_starter_pos_1_pressed(void) {
+    IGNITION_STARTER_Data[0] |= 1;
+}
+
+static void ignition_starter_pos_1_released(void) {
+    engine_started = false;
+    IGNITION_STARTER_Data[0] &= ~1;
+    LIGHTS_Data[0] = 0;
+    WIPERS_Data[0] = 0;
+    TURN_SIGNAL_Data[0] = 0;
+}
+
+static void ignition_starter_pos_2_pressed(void) {
+    IGNITION_STARTER_Data[0] |= 2;
+    engine_started = true;
+}
+
+static void ignition_starter_pos_2_released(void) {
+    IGNITION_STARTER_Data[0] &= ~2;
+    if (engine_started && (LIGHTS_Data[0] == 0)) {
+        // We turn the low beam lights ON as soon as we're done cranking the engine
+        LIGHTS_Data[0] = 1;
+    }
+}
+
+static void headlight_dimmer_pressed(void) {
+    if (engine_started) {
+        LIGHTS_Data[0] ^= 3;
+    }
+}
+
+static void horn_button_pressed(void) { HORN_Data[0] = 1; }
+static void horn_button_released(void) { HORN_Data[0] = 0; }
+
 /**
  * @brief Function for main application entry.
  */
 int main(void)
 {
+    // Wait 5 seconds to give a chance to debug
+    nrf_delay_ms(5000);
+
     APP_ERROR_CHECK(nrfx_clock_init(clock_event_handler));
     nrfx_clock_enable();
     nrfx_clock_lfclk_start();
 
     // Configure GPIO
-    nrf_gpio_cfg_input(IGNITION_STARTER_POS_1_PIN, NRF_GPIO_PIN_NOPULL);
-    nrf_gpio_cfg_input(IGNITION_STARTER_POS_2_PIN, NRF_GPIO_PIN_NOPULL);
-    nrf_gpio_cfg_input(WINDSHIELD_WIPERS_SLOW_PIN, NRF_GPIO_PIN_NOPULL);
-    nrf_gpio_cfg_input(WINDSHIELD_WIPERS_FAST_PIN, NRF_GPIO_PIN_NOPULL);
-    nrf_gpio_cfg_input(TURN_SIGNAL_LEFT_PIN, NRF_GPIO_PIN_NOPULL);
-    nrf_gpio_cfg_input(TURN_SIGNAL_RIGHT_PIN, NRF_GPIO_PIN_NOPULL);
-    nrf_gpio_cfg_input(HEADLIGHT_DIMMER_PIN, NRF_GPIO_PIN_NOPULL);
-    nrf_gpio_cfg_input(HORN_BUTTON_PIN, NRF_GPIO_PIN_NOPULL);
+    ignition_starter_pos_1 = button_init(IGNITION_STARTER_POS_1_PIN, DEBOUNCE_TICKS, ignition_starter_pos_1_pressed, ignition_starter_pos_1_released);
+    ignition_starter_pos_2 = button_init(IGNITION_STARTER_POS_2_PIN, DEBOUNCE_TICKS, ignition_starter_pos_2_pressed, ignition_starter_pos_2_released);
+    windshield_wipers_slow = button_init(WINDSHIELD_WIPERS_SLOW_PIN, DEBOUNCE_TICKS, wipers_changed, wipers_changed);
+    windshield_wipers_fast = button_init(WINDSHIELD_WIPERS_FAST_PIN, DEBOUNCE_TICKS, wipers_changed, wipers_changed);
+    turn_signal_left = button_init(TURN_SIGNAL_LEFT_PIN, DEBOUNCE_TICKS, turn_signal_left_pressed, turn_signal_left_released);
+    turn_signal_right = button_init(TURN_SIGNAL_RIGHT_PIN, DEBOUNCE_TICKS, turn_signal_right_pressed, turn_signal_right_released);
+    headlight_dimmer = button_init(HEADLIGHT_DIMMER_PIN, DEBOUNCE_TICKS, headlight_dimmer_pressed, NULL);
+    horn_button = button_init(HORN_BUTTON_PIN, DEBOUNCE_TICKS, horn_button_pressed, horn_button_released);
 
     // Wake-up the MCP2050
     nrf_gpio_cfg_output(MCP2050_CS_LWAKE_PIN);
@@ -78,67 +161,7 @@ int main(void)
 
     while (true)
     {
-#if 1
-        static bool engine_started = false;
-
-        if (!nrf_gpio_pin_read(IGNITION_STARTER_POS_1_PIN)) {
-            IGNITION_STARTER_Data[0] |= 1;
-        } else {
-            engine_started = false;
-            IGNITION_STARTER_Data[0] &= ~1;
-            LIGHTS_Data[0] = 0;
-            WIPERS_Data[0] = 0;
-            BLINKER_Data[0] = 0;
-        }
-
-        if (!nrf_gpio_pin_read(IGNITION_STARTER_POS_2_PIN)) {
-            IGNITION_STARTER_Data[0] |= 2;
-            engine_started = true;
-        } else {
-            IGNITION_STARTER_Data[0] &= ~1;
-            // We turn the low beam lights ON as soon as we're done cranking the engine
-            LIGHTS_Data[0] = 1;
-        }
-
-        if (!nrf_gpio_pin_read(WINDSHIELD_WIPERS_FAST_PIN)) {
-            WIPERS_Data[0] = 2;
-        } else if (!nrf_gpio_pin_read(WINDSHIELD_WIPERS_SLOW_PIN)) {
-            WIPERS_Data[0] = 1;
-        } else {
-            WIPERS_Data[0] = 0;
-        }
-
-        if (!nrf_gpio_pin_read(TURN_SIGNAL_LEFT_PIN)) {
-            TURN_SIGNAL_Data[0] |= 1;
-        } else {
-            TURN_SIGNAL_Data[0] &= ~1;
-        }
-
-        if (!nrf_gpio_pin_read(TURN_SIGNAL_RIGHT_PIN)) {
-            TURN_SIGNAL_Data[0] |= 2;
-        } else {
-            TURN_SIGNAL_Data[0] &= ~2;
-        }
-
-        static uint32_t headlight_dimmer_previous_state = 1;
-        uint32_t headlight_dimmer_new_state = nrf_gpio_pin_read(HEADLIGHT_DIMMER_PIN);
-        if (engine_started && headlight_dimmer_previous_state && !headlight_dimmer_new_state) {
-            LIGHTS_Data[0] ^= 3;
-        }
-        headlight_dimmer_previous_state = headlight_dimmer_new_state;
-
-        if (!nrf_gpio_pin_read(HORN_BUTTON_PIN)) {
-            HORN_Data[0] = 1;
-        } else {
-            HORN_Data[0] = 0;
-        }
-#else
-        IGNITION_STARTER_Data[0] = 2;
-        WIPERS_Data[0] = 2;
-        TURN_SIGNAL_Data[0] = 3;
-        LIGHTS_Data[0] |= 1;
-        HORN_Data[0] = 1;
-#endif
+        button_execute();
     }
 }
 

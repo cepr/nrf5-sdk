@@ -12,6 +12,7 @@ $(OUTPUT_DIRECTORY)/nrf52832_xxaa.out: \
 SRC_FILES += \
   $(SDK_ROOT)/modules/nrfx/mdk/gcc_startup_nrf52.S \
   $(PROJ_DIR)/main.c \
+  $(PROJ_DIR)/button.c \
   $(PROJ_DIR)/LINDrivers/lin_app.c \
   $(PROJ_DIR)/LINDrivers/lin_master.c \
   $(PROJ_DIR)/LINDrivers/lin_hardware.c \

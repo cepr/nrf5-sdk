@@ -72,7 +72,7 @@ void lin_hardware_uart_set_baudrate(uint32_t baudrate)
 void lin_hardware_uart_write(const uint8_t *data, size_t length, void (*_tx_complete)(void))
 {
     tx_complete = _tx_complete;
-    APP_ERROR_CHECK(nrfx_uart_tx(&uart_driver_instance, data, length));
+    nrfx_uart_tx(&uart_driver_instance, data, length);
 }
 
 void lin_hardware_uart_enable_rx(void (*on_receive_callback)(uint8_t))

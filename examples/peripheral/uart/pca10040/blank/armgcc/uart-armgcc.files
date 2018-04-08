@@ -24,3 +24,5 @@ Makefile
 ../../../LINDrivers/lin_hardware.h
 ../../../LINDrivers/lin_hardware.c
 ../config/sdk_config.h
+../../../button.h
+../../../button.c
